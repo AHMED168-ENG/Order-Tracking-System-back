@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Order } from './entities/order.entity';
@@ -16,7 +16,7 @@ export class OrdersService {
     private stagesRepository: Repository<OrderStage>,
   ) {}
 
-  async findAll(search?: string, department?: string) {
+  async findAll(search?: string, department?: string, page: number = 1, limit: number = 10) {
     const queryBuilder = this.ordersRepository.createQueryBuilder('order');
 
     if (search) {
@@ -37,7 +37,21 @@ export class OrdersService {
       }
     }
 
-    return queryBuilder.orderBy('order.created_at', 'DESC').getMany();
+    const [items, total] = await queryBuilder
+      .orderBy('order.created_at', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    return {
+      items,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async findOne(id: number) {
@@ -64,7 +78,29 @@ export class OrdersService {
     return { order, stages };
   }
 
+  async getSuggestedNumber() {
+    const lastOrder = await this.ordersRepository.findOne({
+      where: {},
+      order: { order_number: 'DESC' },
+    });
+
+    if (!lastOrder) return 'ORD-2024001';
+
+    const match = lastOrder.order_number.match(/(\d+)/);
+    if (!match) return 'ORD-2024001';
+
+    const nextNum = parseInt(match[0]) + 1;
+    return `ORD-${nextNum}`;
+  }
+
   async create(createOrderDto: CreateOrderDto, user: any) {
+    const existing = await this.ordersRepository.findOne({
+      where: { order_number: createOrderDto.order_number },
+    });
+    if (existing) {
+      throw new ConflictException(`Order number ${createOrderDto.order_number} already exists`);
+    }
+
     const newOrder = this.ordersRepository.create({
       ...createOrderDto,
       status: 'Pending',

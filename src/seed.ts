@@ -46,49 +46,46 @@ async function bootstrap() {
   }
 
   // Seed Dummy Orders
-  const orderCount = await orderRepo.count();
-  if (orderCount === 0) {
-    console.log('Seeding Orders...');
-    
-    // Calculate future date for delivery
-    const deliveryDate = new Date();
-    deliveryDate.setDate(deliveryDate.getDate() + 10);
+  // We want to seed even if there are some orders, to ensure we have enough for pagination
+  console.log('Seeding 25 Orders for Pagination Test...');
+  for (let i = 1; i <= 25; i++) {
+    const orderNumber = `ORD-${2024000 + i}`;
+    const existing = await orderRepo.findOne({ where: { order_number: orderNumber } });
+    if (existing) continue;
 
-    const order1 = await orderRepo.save({
-      order_number: 'ORD-001',
-      customer_name: 'Acme Corp',
-      status: 'In Progress',
-      current_stage: 'Filing team',
-      estimated_delivery: deliveryDate,
-    });
-
-    await stageRepo.save({
-      order_id: order1.id,
-      stage_name: 'New Batches',
-      status: 'Completed',
-      notes: 'Initial designs approved',
-    });
-
-    await stageRepo.save({
-      order_id: order1.id,
-      stage_name: 'Filing team',
-      status: 'In Progress',
-      notes: 'Fabric sent to cutting room',
-    });
-
-    const order2 = await orderRepo.save({
-      order_number: 'ORD-002',
-      customer_name: 'Global Styles',
+    const order = orderRepo.create({
+      order_number: orderNumber,
+      customer_name: `Test Customer ${i}`,
+      phone: `010000000${i.toString().padStart(2, '0')}`,
+      address: `Test Address ${i}`,
+      total_amount: 1000 + (i * 100),
       status: 'Pending',
       current_stage: 'New Batches',
-      estimated_delivery: deliveryDate,
     });
+    const savedOrder = await orderRepo.save(order);
 
-    await stageRepo.save({
-      order_id: order2.id,
+    const stage = stageRepo.create({
+      order_id: savedOrder.id,
       stage_name: 'New Batches',
       status: 'Pending',
-      notes: 'Awaiting raw materials',
+      notes: 'Initial seed',
+    });
+    await stageRepo.save(stage);
+  }
+
+  console.log('Seeding 15 Employees for Pagination Test...');
+  for (let i = 1; i <= 15; i++) {
+    const email = `staff${i}@factory.com`;
+    const existing = await employeeRepo.findOne({ where: { email } });
+    if (existing) continue;
+
+    const hashedPwd = await bcrypt.hash('password123', 10);
+    await employeeRepo.save({
+      name: `Factory Staff ${i}`,
+      department: i % 2 === 0 ? 'Production' : 'QA Dept',
+      role: 'employee',
+      email: email,
+      password: hashedPwd,
     });
   }
 

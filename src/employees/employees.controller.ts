@@ -1,15 +1,18 @@
-import { Controller, Get, Post, Delete, Body, Param, UseGuards, Request, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param, UseGuards, Query } from '@nestjs/common';
 import { EmployeesService } from './employees.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 
 @Controller('api/employees')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin')
 export class EmployeesController {
   constructor(private readonly employeesService: EmployeesService) {}
 
   @Get()
-  findAll() {
-    return this.employeesService.findAll();
+  findAll(@Query('page') page: number = 1, @Query('limit') limit: number = 10) {
+    return this.employeesService.findAll(+page, +limit);
   }
 
   @Post()

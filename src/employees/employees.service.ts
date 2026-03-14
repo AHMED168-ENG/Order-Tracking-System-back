@@ -11,10 +11,23 @@ export class EmployeesService {
     private employeesRepository: Repository<Employee>,
   ) {}
 
-  async findAll() {
-    return this.employeesRepository.find({
+  async findAll(page: number = 1, limit: number = 10) {
+    const [items, total] = await this.employeesRepository.findAndCount({
       select: ['id', 'name', 'email', 'role', 'department'],
+      skip: (page - 1) * limit,
+      take: limit,
+      order: { id: 'DESC' },
     });
+
+    return {
+      items,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async findByEmail(email: string): Promise<Employee | null> {
