@@ -188,10 +188,14 @@ export class OrdersService {
   }
 
   async updateStage(updateStageDto: UpdateStageDto, files: any[] = [], user?: any) {
-    const { order_id, stage_name, status, notes } = updateStageDto;
+    const { order_id, stage_name, status, notes, estimated_delivery } = updateStageDto;
     
     const order = await this.ordersRepository.findOne({ where: { id: order_id } });
     if (!order) throw new NotFoundException('Order not found');
+
+    if (estimated_delivery) {
+      order.estimated_delivery = new Date(estimated_delivery);
+    }
 
     // Transition Guard: Moving to 'Ready for Embroidery'
     if (stage_name === 'Ready for Embroidery') {

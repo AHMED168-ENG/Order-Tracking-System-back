@@ -18,4 +18,8 @@ export class UpdateStageDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @IsString()
+  @IsOptional()
+  estimated_delivery?: string;
 }
