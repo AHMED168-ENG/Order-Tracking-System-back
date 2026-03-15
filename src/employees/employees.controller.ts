@@ -36,4 +36,10 @@ export class EmployeesController {
   remove(@Param('id') id: string) {
     return this.employeesService.remove(+id);
   }
+
+  @Put(':id')
+  @Roles('admin')
+  update(@Param('id') id: string, @Body() updateData: any) {
+    return this.employeesService.updateByAdmin(+id, updateData);
+  }
 }

@@ -86,4 +86,23 @@ export class EmployeesService {
     Object.assign(employee, updateData);
     return this.employeesRepository.save(employee);
   }
+
+  async updateByAdmin(id: number, updateData: any) {
+    const employee = await this.employeesRepository.findOne({ where: { id } });
+    if (!employee) throw new ConflictException('Employee not found');
+
+    if (updateData.email && updateData.email !== employee.email) {
+      const existing = await this.findByEmail(updateData.email);
+      if (existing) throw new ConflictException('Email already in use by another employee');
+    }
+
+    // Admin can update name, email, role, department (but NOT password via this endpoint)
+    const { name, email, role, department } = updateData;
+    if (name !== undefined) employee.name = name;
+    if (email !== undefined) employee.email = email;
+    if (role !== undefined) employee.role = role;
+    if (department !== undefined) employee.department = department;
+
+    return this.employeesRepository.save(employee);
+  }
 }
