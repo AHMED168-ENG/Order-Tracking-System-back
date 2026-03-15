@@ -56,4 +56,34 @@ export class EmployeesService {
     
     return this.employeesRepository.delete(id);
   }
+
+  async findOne(id: number): Promise<Employee | null> {
+    return this.employeesRepository.findOne({ 
+      where: { id },
+      select: ['id', 'name', 'email', 'role', 'department'] 
+    });
+  }
+
+  async updateProfile(id: number, updateData: any) {
+    const employee = await this.employeesRepository.findOne({ where: { id } });
+    if (!employee) throw new ConflictException('Employee not found');
+
+    if (updateData.email && updateData.email !== employee.email) {
+      const existing = await this.findByEmail(updateData.email);
+      if (existing) throw new ConflictException('Email already in use');
+    }
+
+    if (updateData.password) {
+      updateData.password = await bcrypt.hash(updateData.password, 10);
+    } else {
+      delete updateData.password;
+    }
+
+    // Don't allow changing role/department via profile update for security
+    delete updateData.role;
+    delete updateData.department;
+
+    Object.assign(employee, updateData);
+    return this.employeesRepository.save(employee);
+  }
 }
