@@ -22,6 +22,9 @@ export class OrderStage {
   @Column({ type: 'text', nullable: true })
   notes: string;
 
+  @Column({ type: 'json', nullable: true })
+  attachments: string[];
+
   @UpdateDateColumn()
   updated_at: Date;
 }

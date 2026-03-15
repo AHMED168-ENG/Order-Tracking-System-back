@@ -12,6 +12,15 @@ export class Order {
   @Column({ length: 255 })
   customer_name: string;
 
+  @Column({ length: 20, nullable: true })
+  phone: string;
+
+  @Column({ type: 'text', nullable: true })
+  address: string;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  total_amount: number;
+
   @Column({ length: 50 })
   status: string;
 

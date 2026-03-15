@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Like, In } from 'typeorm';
+import * as XLSX from 'xlsx';
 import { Order } from './entities/order.entity';
 import { OrderStage } from './entities/order-stage.entity';
 import { ALL_STAGES, DEPT_MAPPING } from '../common/constants';
@@ -15,6 +16,72 @@ export class OrdersService {
     @InjectRepository(OrderStage)
     private stagesRepository: Repository<OrderStage>,
   ) {}
+
+  async bulkCreateFromExcel(file: Express.Multer.File, user: any) {
+    if (!file) throw new BadRequestException('No file uploaded');
+
+    const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const data: any[] = XLSX.utils.sheet_to_json(sheet);
+
+    const results = {
+      total: data.length,
+      success: 0,
+      failed: 0,
+      errors: [] as Array<{ row: number; message: string }>,
+    };
+
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      const rowNum = i + 2; // +1 for zero-index, +1 for header row
+
+      try {
+        const orderNumber = String(row['Order Number'] || row['order_number'] || '').trim();
+        const customerName = String(row['Customer Name'] || row['customer_name'] || '').trim();
+        const phone = String(row['Phone'] || row['phone'] || '').trim();
+        const address = String(row['Address'] || row['address'] || '').trim();
+        const totalAmount = Number(row['Total Amount'] || row['total_amount'] || 0);
+
+        if (!orderNumber || !customerName || !phone) {
+          throw new Error('Missing required fields (Order Number, Customer Name, or Phone)');
+        }
+
+        const existing = await this.ordersRepository.findOne({ where: { order_number: orderNumber } });
+        if (existing) {
+          throw new Error(`Order number ${orderNumber} already exists`);
+        }
+
+        const order = this.ordersRepository.create({
+          order_number: orderNumber,
+          customer_name: customerName,
+          phone,
+          address,
+          total_amount: totalAmount,
+          status: 'Pending',
+          current_stage: 'New Batches',
+        });
+
+        const savedOrder = await this.ordersRepository.save(order);
+
+        await this.stagesRepository.save(
+          this.stagesRepository.create({
+            order_id: savedOrder.id,
+            stage_name: 'New Batches',
+            status: 'Pending',
+            notes: 'Created via bulk upload',
+          }),
+        );
+
+        results.success++;
+      } catch (err) {
+        results.failed++;
+        results.errors.push({ row: rowNum, message: err.message });
+      }
+    }
+
+    return results;
+  }
 
   async findAll(search?: string, department?: string, page: number = 1, limit: number = 10) {
     const queryBuilder = this.ordersRepository.createQueryBuilder('order');
@@ -120,17 +187,31 @@ export class OrdersService {
     return savedOrder;
   }
 
-  async updateStage(updateStageDto: UpdateStageDto) {
+  async updateStage(updateStageDto: UpdateStageDto, files: any[] = [], user?: any) {
     const { order_id, stage_name, status, notes } = updateStageDto;
     
     const order = await this.ordersRepository.findOne({ where: { id: order_id } });
     if (!order) throw new NotFoundException('Order not found');
+
+    // Transition Guard: Moving to 'Ready for Embroidery'
+    if (stage_name === 'Ready for Embroidery') {
+      const history = await this.stagesRepository.find({ where: { order_id } });
+      const hasDesign = history.some(s => s.stage_name === 'Design ready');
+      const hasCutting = history.some(s => s.stage_name === 'Cut pieces ready');
+      
+      if ((!hasDesign || !hasCutting) && user?.role !== 'admin') {
+        throw new BadRequestException('Cannot move to Embroidery: Both Design ready and Cut pieces ready stages must be completed first.');
+      }
+    }
+
+    const attachments = files.map(file => `/uploads/${file.filename}`);
 
     const newStage = this.stagesRepository.create({
       order_id,
       stage_name,
       status,
       notes,
+      attachments,
     });
     await this.stagesRepository.save(newStage);
 
