@@ -12,6 +12,10 @@ import { AuthModule } from './auth/auth.module';
 import { OrdersModule } from './orders/orders.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { EmployeesModule } from './employees/employees.module';
+import { SettingsModule } from './settings/settings.module';
+import { StagesModule } from './settings/stages.module';
+import { AppSetting } from './settings/entities/app-setting.entity';
+import { StageDefinition } from './settings/entities/stage-definition.entity';
 
 @Module({
   imports: [
@@ -34,7 +38,7 @@ import { EmployeesModule } from './employees/employees.module';
         username: configService.get<string>('DB_USER', 'postgres'),
         password: configService.get<string>('DB_PASSWORD', 'postgres'),
         database: configService.get<string>('DB_NAME', 'garment_tracking'),
-        entities: [Employee, Order, OrderStage],
+        entities: [Employee, Order, OrderStage, AppSetting, StageDefinition],
         synchronize: true, // Auto-create tables in dev
       }),
       inject: [ConfigService],
@@ -43,6 +47,8 @@ import { EmployeesModule } from './employees/employees.module';
     OrdersModule,
     DashboardModule,
     EmployeesModule,
+    SettingsModule,
+    StagesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

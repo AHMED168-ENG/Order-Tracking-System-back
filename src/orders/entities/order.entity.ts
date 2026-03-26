@@ -21,6 +21,12 @@ export class Order {
   @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
   total_amount: number;
 
+  @Column({ type: 'int', default: 0 })
+  piece_count: number;
+
+  @Column({ type: 'text', nullable: true })
+  invoice_image?: string;
+
   @Column({ length: 50 })
   status: string;
 

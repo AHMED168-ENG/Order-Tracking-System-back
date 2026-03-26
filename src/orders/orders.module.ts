@@ -4,9 +4,10 @@ import { OrdersService } from './orders.service';
 import { OrdersController } from './orders.controller';
 import { Order } from './entities/order.entity';
 import { OrderStage } from './entities/order-stage.entity';
+import { StageDefinition } from '../settings/entities/stage-definition.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Order, OrderStage])],
+  imports: [TypeOrmModule.forFeature([Order, OrderStage, StageDefinition])],
   controllers: [OrdersController],
   providers: [OrdersService],
 })

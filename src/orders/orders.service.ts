@@ -4,7 +4,8 @@ import { Repository, Like, In } from 'typeorm';
 import * as XLSX from 'xlsx';
 import { Order } from './entities/order.entity';
 import { OrderStage } from './entities/order-stage.entity';
-import { ALL_STAGES, DEPT_MAPPING } from '../common/constants';
+import { DEPT_MAPPING, ALL_STAGES } from '../common/constants';
+import { StageDefinition } from '../settings/entities/stage-definition.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateStageDto } from './dto/update-stage.dto';
 
@@ -15,6 +16,8 @@ export class OrdersService {
     private ordersRepository: Repository<Order>,
     @InjectRepository(OrderStage)
     private stagesRepository: Repository<OrderStage>,
+    @InjectRepository(StageDefinition)
+    private stageDefinitionsRepository: Repository<StageDefinition>,
   ) {}
 
   async bulkCreateFromExcel(file: Express.Multer.File, user: any) {
@@ -42,6 +45,7 @@ export class OrdersService {
         const phone = String(row['Phone'] || row['phone'] || '').trim();
         const address = String(row['Address'] || row['address'] || '').trim();
         const totalAmount = Number(row['Total Amount'] || row['total_amount'] || 0);
+        const pieceCount = Number(row['Pieces'] || row['pieces'] || row['Piece Count'] || row['piece_count'] || 0);
 
         if (!orderNumber || !customerName || !phone) {
           throw new Error('Missing required fields (Order Number, Customer Name, or Phone)');
@@ -52,14 +56,19 @@ export class OrdersService {
           throw new Error(`Order number ${orderNumber} already exists`);
         }
 
+        // Get first stage dynamically (or fallback to 'New Batches')
+        const firstStage = await this.stageDefinitionsRepository.findOne({ order: { order_index: 'ASC' } });
+        const initialStageName = firstStage?.name || 'New Batches';
+
         const order = this.ordersRepository.create({
           order_number: orderNumber,
           customer_name: customerName,
           phone,
           address,
           total_amount: totalAmount,
+          piece_count: pieceCount,
           status: 'Pending',
-          current_stage: 'New Batches',
+          current_stage: initialStageName,
         });
 
         const savedOrder = await this.ordersRepository.save(order);
@@ -67,7 +76,7 @@ export class OrdersService {
         await this.stagesRepository.save(
           this.stagesRepository.create({
             order_id: savedOrder.id,
-            stage_name: 'New Batches',
+            stage_name: initialStageName,
             status: 'Pending',
             notes: 'Created via bulk upload',
           }),
@@ -83,7 +92,7 @@ export class OrdersService {
     return results;
   }
 
-  async findAll(search?: string, department?: string, page: number = 1, limit: number = 10) {
+  async findAll(search?: string, department?: string, stage?: string, page: number = 1, limit: number = 10) {
     const queryBuilder = this.ordersRepository.createQueryBuilder('order');
 
     if (search) {
@@ -94,14 +103,23 @@ export class OrdersService {
     }
 
     if (department && department !== 'Management') {
-      const stagesForDept = ALL_STAGES.filter(
-        (stage) => DEPT_MAPPING[stage] === department,
-      );
-      if (stagesForDept.length > 0) {
+      const stagesForDept = await this.stageDefinitionsRepository.find({
+        where: { department }
+      });
+      const stageNames = stagesForDept.map(s => s.name);
+      
+      if (stageNames.length > 0) {
         queryBuilder.andWhere('order.current_stage IN (:...stages)', {
-          stages: stagesForDept,
+          stages: stageNames,
         });
+      } else {
+        // If no stages found for this dept, show nothing (or handle error)
+        queryBuilder.andWhere('1=0'); 
       }
+    }
+
+    if (stage) {
+      queryBuilder.andWhere('order.current_stage = :stage', { stage });
     }
 
     const [items, total] = await queryBuilder
@@ -133,9 +151,20 @@ export class OrdersService {
     return { order, stages };
   }
 
+  async findOneWithRole(id: number, role: string) {
+    const { order, stages } = await this.findOne(id);
+    if (role !== 'admin') {
+      delete (order as any).invoice_image;
+    }
+    return { order, stages };
+  }
+
   async trackOrder(order_number: string) {
     const order = await this.ordersRepository.findOne({ where: { order_number } });
     if (!order) throw new NotFoundException('Order not found');
+    
+    // Hide sensitive fields for public tracking
+    delete (order as any).invoice_image;
     
     const stages = await this.stagesRepository.find({
       where: { order_id: order.id },
@@ -144,7 +173,6 @@ export class OrdersService {
 
     return { order, stages };
   }
-
   async getSuggestedNumber() {
     const lastOrder = await this.ordersRepository.findOne({
       where: {},
@@ -168,17 +196,23 @@ export class OrdersService {
       throw new ConflictException(`Order number ${createOrderDto.order_number} already exists`);
     }
 
+    // Get first stage dynamically
+    const firstStage = await this.stageDefinitionsRepository.findOne({ order: { order_index: 'ASC' } });
+    const initialStageName = firstStage?.name || 'New Batches';
+
     const newOrder = this.ordersRepository.create({
       ...createOrderDto,
+      piece_count: createOrderDto.piece_count || 0,
+      invoice_image: createOrderDto.invoice_image || undefined,
       status: 'Pending',
-      current_stage: 'New Batches',
+      current_stage: initialStageName,
     });
     
     const savedOrder = await this.ordersRepository.save(newOrder);
 
     const initialStage = this.stagesRepository.create({
       order_id: savedOrder.id,
-      stage_name: 'New Batches',
+      stage_name: initialStageName,
       status: 'Pending',
       notes: 'Order created by ' + user.name,
     });
@@ -219,13 +253,28 @@ export class OrdersService {
     });
     await this.stagesRepository.save(newStage);
 
+    // Dynamic status determination
+    const lastStage = await this.stageDefinitionsRepository.findOne({
+      order: { order_index: 'DESC' },
+      where: { is_active: true }
+    });
+    
+    const firstStage = await this.stageDefinitionsRepository.findOne({
+      order: { order_index: 'ASC' },
+      where: { is_active: true }
+    });
+
     let orderStatus = 'In Progress';
-    if (stage_name === 'Shipped') orderStatus = 'Completed';
-    else if (stage_name === 'New Batches' && status === 'Pending') orderStatus = 'Pending';
+    if (stage_name === lastStage?.name) orderStatus = 'Completed';
+    else if (stage_name === firstStage?.name && status === 'Pending') orderStatus = 'Pending';
     
     order.current_stage = stage_name;
     order.status = orderStatus;
     
+    return this.ordersRepository.save(order);
+  }
+
+  async saveOrder(order: Order) {
     return this.ordersRepository.save(order);
   }
 }

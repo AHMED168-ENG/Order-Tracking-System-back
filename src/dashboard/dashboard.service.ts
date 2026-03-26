@@ -3,7 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Order } from '../orders/entities/order.entity';
 import { OrderStage } from '../orders/entities/order-stage.entity';
-import { DEPT_MAPPING } from '../common/constants';
+import { DEPT_MAPPING, ALL_STAGES } from '../common/constants';
+import { StageDefinition } from '../settings/entities/stage-definition.entity';
 
 @Injectable()
 export class DashboardService {
@@ -12,6 +13,8 @@ export class DashboardService {
     private ordersRepository: Repository<Order>,
     @InjectRepository(OrderStage)
     private stagesRepository: Repository<OrderStage>,
+    @InjectRepository(StageDefinition)
+    private stageDefinitionsRepository: Repository<StageDefinition>,
   ) {}
 
   async getStats() {
@@ -40,16 +43,33 @@ export class DashboardService {
       .where('order.status != :status', { status: 'Completed' })
       .select('current_stage')
       .addSelect('COUNT(*)', 'count')
+      .addSelect('SUM(piece_count)', 'total_pieces')
       .groupBy('current_stage')
       .getRawMany();
 
     // Production efficiency indicator
     const efficiencyRate = total > 0 ? ((completed / total) * 100).toFixed(1) : '0.0';
 
-    // Orders by Department
+    // Get all defined stages to ensure zero-counts are included
+    const allDefinedStages = await this.stageDefinitionsRepository.find({
+      order: { order_index: 'ASC' },
+      where: { is_active: true }
+    });
+
+    const stagesChart = allDefinedStages.map(stage => {
+      const activeData = activeOrders.find(ao => ao.current_stage === stage.name);
+      return {
+        current_stage: stage.name,
+        count: activeData ? parseInt(activeData.count, 10) : 0,
+        total_pieces: activeData ? parseInt(activeData.total_pieces || '0', 10) : 0
+      };
+    });
+
+    // Orders by Department (now using all defined stages)
     const departmentStats: { [key: string]: number } = {};
     activeOrders.forEach(st => {
-      const dept = DEPT_MAPPING[st.current_stage] || 'Other';
+      const stageDef = allDefinedStages.find(sd => sd.name === st.current_stage);
+      const dept = stageDef ? stageDef.department : (DEPT_MAPPING[st.current_stage] || 'Other');
       departmentStats[dept] = (departmentStats[dept] || 0) + parseInt(st.count, 10);
     });
 
@@ -68,10 +88,7 @@ export class DashboardService {
       completed,
       pending,
       efficiencyRate,
-      stagesChart: activeOrders.map(st => ({
-        current_stage: st.current_stage,
-        count: parseInt(st.count, 10)
-      })),
+      stagesChart,
       departmentChart: Object.keys(departmentStats).map(name => ({
         name,
         count: departmentStats[name]

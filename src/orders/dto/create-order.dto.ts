@@ -17,10 +17,19 @@ export class CreateOrderDto {
   @IsNotEmpty()
   address: string;
 
+  @IsOptional()
   @IsNumber({}, { message: 'Total amount must be a number' })
-  total_amount: number;
+  total_amount?: number;
+
+  @IsOptional()
+  @IsNumber()
+  piece_count?: number;
 
   @IsString()
   @IsOptional()
   estimated_delivery?: string;
+
+  @IsString()
+  @IsOptional()
+  invoice_image?: string;
 }
