@@ -27,6 +27,15 @@ export class Order {
   @Column({ type: 'text', nullable: true })
   invoice_image?: string;
 
+  @Column({ length: 255, nullable: true })
+  design_name?: string;
+
+  @Column({ type: 'date', nullable: true })
+  approve_date?: Date;
+
+  @Column({ length: 255, nullable: true })
+  tailor_name?: string;
+
   @Column({ length: 50 })
   status: string;
 

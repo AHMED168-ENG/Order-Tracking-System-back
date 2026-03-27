@@ -32,6 +32,23 @@ async function bootstrap() {
     });
   }
 
+  // Seed Accountant
+  const acctEmail = 'accountant@factory.com';
+  const existingAcct = await employeeRepo.findOne({
+    where: { email: acctEmail },
+  });
+  if (!existingAcct) {
+    console.log('Seeding Accountant...');
+    const hashedPwd = await bcrypt.hash('password123', 10);
+    await employeeRepo.save({
+      name: 'Main Accountant',
+      department: 'Finance',
+      role: 'accountant',
+      email: acctEmail,
+      password: hashedPwd,
+    });
+  }
+
   // Seed Staff
   const staffEmail = 'staff@factory.com';
   const existingStaff = await employeeRepo.findOne({

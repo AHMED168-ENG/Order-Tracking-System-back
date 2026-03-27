@@ -224,7 +224,7 @@ export class OrdersService {
   }
 
   async updateStage(updateStageDto: UpdateStageDto, files: any[] = [], user?: any) {
-    const { order_id, stage_name, status, notes, estimated_delivery } = updateStageDto;
+    const { order_id, stage_name, status, notes, estimated_delivery, design_name, approve_date, tailor_name } = updateStageDto;
     
     const order = await this.ordersRepository.findOne({ where: { id: order_id } });
     if (!order) throw new NotFoundException('Order not found');
@@ -232,16 +232,17 @@ export class OrdersService {
     if (estimated_delivery) {
       order.estimated_delivery = new Date(estimated_delivery);
     }
-
-    // Transition Guard: Moving to 'Ready for Embroidery'
-    if (stage_name === 'Ready for Embroidery') {
-      const history = await this.stagesRepository.find({ where: { order_id } });
-      const hasDesign = history.some(s => s.stage_name === 'Design ready');
-      const hasCutting = history.some(s => s.stage_name === 'Cut pieces ready');
-      
-      if ((!hasDesign || !hasCutting) && user?.role !== 'admin') {
-        throw new BadRequestException('Cannot move to Embroidery: Both Design ready and Cut pieces ready stages must be completed first.');
-      }
+    
+    if (design_name) {
+      order.design_name = design_name;
+    }
+    
+    if (approve_date) {
+      order.approve_date = new Date(approve_date);
+    }
+    
+    if (tailor_name) {
+      order.tailor_name = tailor_name;
     }
 
     const attachments = files.map(file => `/uploads/${file.filename}`);
@@ -252,6 +253,7 @@ export class OrdersService {
       status,
       notes,
       attachments,
+      employee_id: user?.id,
     });
     await this.stagesRepository.save(newStage);
 
@@ -273,7 +275,25 @@ export class OrdersService {
     order.current_stage = stage_name;
     order.status = orderStatus;
     
-    return this.ordersRepository.save(order);
+    const savedOrder = await this.ordersRepository.save(order);
+
+    // Auto-transition logic
+    if (stage_name === 'Design & Cut Pieces Ready') {
+      const nextStageName = 'Ready for Embroidery';
+      const autoStage = this.stagesRepository.create({
+        order_id,
+        stage_name: nextStageName,
+        status: 'Pending',
+        notes: 'Auto-transitioned from Design & Cut Pieces Ready',
+        attachments: [],
+        employee_id: user?.id,
+      });
+      await this.stagesRepository.save(autoStage);
+      savedOrder.current_stage = nextStageName;
+      return this.ordersRepository.save(savedOrder);
+    }
+
+    return savedOrder;
   }
 
   async saveOrder(order: Order) {

@@ -13,6 +13,13 @@ export class OrderStage {
   @Column({ name: 'order_id' })
   order_id: number;
 
+  @ManyToOne('Employee')
+  @JoinColumn({ name: 'employee_id' })
+  employee: any;
+
+  @Column({ nullable: true })
+  employee_id: number;
+
   @Column({ length: 100 })
   stage_name: string;
 
