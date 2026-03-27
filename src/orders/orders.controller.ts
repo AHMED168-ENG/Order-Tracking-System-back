@@ -99,6 +99,10 @@ export class OrdersController {
     @Request() req: any,
     @UploadedFile('invoice') invoice?: Express.Multer.File,
   ) {
+    if (req.user.role === 'accountant') {
+      throw new ForbiddenException('Accountants are not allowed to modify orders');
+    }
+
     const order = await this.ordersService.updateStage(updateStageDto, files, req.user);
     
     if (invoice && req.user.role === 'admin') {

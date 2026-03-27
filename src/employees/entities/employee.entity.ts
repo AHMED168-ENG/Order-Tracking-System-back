@@ -17,6 +17,9 @@ export class Employee {
   @Column({ unique: true, length: 255 })
   email: string;
 
+  @Column({ length: 255, nullable: true })
+  phone: string;
+
   @Column({ length: 255 })
   password: string;
 }
