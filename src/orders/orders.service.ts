@@ -195,9 +195,11 @@ export class OrdersService {
     if (existing) {
       throw new ConflictException(`Order number ${createOrderDto.order_number} already exists`);
     }
-
     // Get first stage dynamically
-    const firstStage = await this.stageDefinitionsRepository.findOne({ order: { order_index: 'ASC' } });
+    const firstStage = await this.stageDefinitionsRepository.findOne({ 
+      where: {}, 
+      order: { order_index: 'ASC' } 
+    });
     const initialStageName = firstStage?.name || 'New Batches';
 
     const newOrder = this.ordersRepository.create({

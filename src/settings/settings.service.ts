@@ -26,13 +26,34 @@ export class SettingsService implements OnModuleInit {
   }
 
   async getSettings() {
-    const settings = await this.settingsRepository.find();
-    return settings[0];
+    try {
+      const settings = await this.settingsRepository.find();
+      if (settings.length === 0) {
+        console.log('No settings found, creating default...');
+        const newSettings = this.settingsRepository.create({
+          phone_numbers: 'Not set',
+          whatsapp: '',
+          facebook_url: '',
+          instagram_url: '',
+          address: '',
+        });
+        return await this.settingsRepository.save(newSettings);
+      }
+      return settings[0];
+    } catch (error) {
+      console.error('Error in getSettings:', error);
+      throw error;
+    }
   }
 
   async updateSettings(updateData: Partial<AppSetting>) {
-    const settings = await this.getSettings();
-    Object.assign(settings, updateData);
-    return this.settingsRepository.save(settings);
+    try {
+      const settings = await this.getSettings();
+      Object.assign(settings, updateData);
+      return await this.settingsRepository.save(settings);
+    } catch (error) {
+      console.error('Error in updateSettings:', error);
+      throw error;
+    }
   }
 }

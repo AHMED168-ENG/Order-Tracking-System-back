@@ -1,4 +1,5 @@
-import { IsNotEmpty, IsOptional, IsString, IsNumber, IsNumberString, MinLength } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsNumber, IsNumberString, MinLength, IsInt } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateOrderDto {
   @IsString()
@@ -18,11 +19,13 @@ export class CreateOrderDto {
   address: string;
 
   @IsOptional()
+  @Type(() => Number)
   @IsNumber({}, { message: 'Total amount must be a number' })
   total_amount?: number;
 
   @IsOptional()
-  @IsNumber()
+  @Type(() => Number)
+  @IsInt({ message: 'Piece count must be an integer' })
   piece_count?: number;
 
   @IsString()

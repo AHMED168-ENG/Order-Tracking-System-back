@@ -8,7 +8,7 @@ import * as bcrypt from 'bcryptjs';
 
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(AppModule);
-  
+
   const employeeRepo = app.get(getRepositoryToken(Employee));
   const orderRepo = app.get(getRepositoryToken(Order));
   const stageRepo = app.get(getRepositoryToken(OrderStage));
@@ -17,10 +17,12 @@ async function bootstrap() {
 
   // Seed Admin
   const adminEmail = 'admin@factory.com';
-  const existingAdmin = await employeeRepo.findOne({ where: { email: adminEmail } });
+  const existingAdmin = await employeeRepo.findOne({
+    where: { email: adminEmail },
+  });
   if (!existingAdmin) {
     console.log('Seeding Admin...');
-    const hashedPwd = await bcrypt.hash('admin123', 10);
+    const hashedPwd = await bcrypt.hash('password123', 10);
     await employeeRepo.save({
       name: 'Admin User',
       department: 'Management',
@@ -32,7 +34,9 @@ async function bootstrap() {
 
   // Seed Staff
   const staffEmail = 'staff@factory.com';
-  const existingStaff = await employeeRepo.findOne({ where: { email: staffEmail } });
+  const existingStaff = await employeeRepo.findOne({
+    where: { email: staffEmail },
+  });
   if (!existingStaff) {
     console.log('Seeding Staff...');
     const hashedPwd = await bcrypt.hash('password123', 10);
@@ -50,7 +54,9 @@ async function bootstrap() {
   console.log('Seeding 25 Orders for Pagination Test...');
   for (let i = 1; i <= 25; i++) {
     const orderNumber = `ORD-${2024000 + i}`;
-    const existing = await orderRepo.findOne({ where: { order_number: orderNumber } });
+    const existing = await orderRepo.findOne({
+      where: { order_number: orderNumber },
+    });
     if (existing) continue;
 
     const order = orderRepo.create({
@@ -58,7 +64,7 @@ async function bootstrap() {
       customer_name: `Test Customer ${i}`,
       phone: `010000000${i.toString().padStart(2, '0')}`,
       address: `Test Address ${i}`,
-      total_amount: 1000 + (i * 100),
+      total_amount: 1000 + i * 100,
       status: 'Pending',
       current_stage: 'New Batches',
     });
