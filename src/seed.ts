@@ -112,6 +112,26 @@ async function bootstrap() {
     });
   }
 
+  // Backfill historical OrderStage records with employee_ids
+  // The `stageRepo` is already defined at the top of the function.
+  const stagesWithoutEmployee = await stageRepo.find({ where: { employee_id: null } });
+  if (stagesWithoutEmployee.length > 0) {
+    console.log(`Backfilling ${stagesWithoutEmployee.length} historical stages with employee IDs...`);
+    const allStaff = await employeeRepo.find(); // Assuming all employees can be staff
+    if (allStaff.length > 0) {
+      for (const stage of stagesWithoutEmployee) {
+        // Randomly assign to a staff member
+        const randomStaff = allStaff[Math.floor(Math.random() * allStaff.length)];
+        stage.employee_id = randomStaff.id;
+      }
+      await stageRepo.save(stagesWithoutEmployee);
+      console.log('Backfill complete!');
+    } else {
+      console.log('No staff found to backfill employee IDs for stages.');
+    }
+  }
+
+
   console.log('Database exact seeding complete!');
   await app.close();
 }

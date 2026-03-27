@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, Request, UseInterceptors, UploadedFiles, UploadedFile, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, Request, Req, UseInterceptors, UploadedFiles, UploadedFile, ForbiddenException } from '@nestjs/common';
 import { FilesInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { v4 as uuidv4 } from 'uuid';
@@ -31,12 +31,13 @@ export class OrdersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Get()
   findAll(
-    @Query('search') search?: string, 
-    @Query('department') department?: string,
-    @Query('stage') stage?: string,
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
+    @Query('search') search: string,
+    @Query('stage') stage: string,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '10',
+    @Req() req: any,
   ) {
+    const department = ['admin', 'accountant'].includes(req.user.role) ? null : req.user.department;
     return this.ordersService.findAll(search, department, stage, +page, +limit);
   }
 

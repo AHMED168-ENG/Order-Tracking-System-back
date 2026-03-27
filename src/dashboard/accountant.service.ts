@@ -33,7 +33,8 @@ export class AccountantDashboardService {
     const { start, end } = this.getDateRange(period);
 
     // Group stages by employee within date range, joining the Order to get piece_count
-    const qb = this.stagesRepository.createQueryBuilder('stage')
+    const qb = this.stagesRepository
+      .createQueryBuilder('stage')
       .leftJoinAndSelect('stage.order', 'order')
       .leftJoinAndSelect('stage.employee', 'employee')
       .where('stage.updated_at BETWEEN :start AND :end', { start, end })
@@ -41,12 +42,13 @@ export class AccountantDashboardService {
 
     const stages = await qb.getMany();
 
-    const employeeMap = {};
-    
-    stages.forEach(s => {
+    const employeeMap: Record<number, any> = {};
+
+    stages.forEach((s) => {
       const empId = s.employee_id;
       if (!employeeMap[empId]) {
         employeeMap[empId] = {
+          id: empId,
           employee_name: s.employee ? s.employee.name : 'Unknown User',
           stages_completed: 0,
           pieces_processed: 0,
@@ -55,23 +57,25 @@ export class AccountantDashboardService {
       }
       employeeMap[empId].stages_completed += 1;
       employeeMap[empId].orders.add(s.order_id);
-      employeeMap[empId].pieces_processed += s.order ? Number(s.order.piece_count) : 0;
+      employeeMap[empId].pieces_processed += s.order
+        ? Number(s.order.piece_count)
+        : 0;
     });
 
-    const results = Object.keys(employeeMap).map(id => ({
-      employee_id: id,
-      name: employeeMap[id].employee_name,
-      stages_completed: employeeMap[id].stages_completed,
-      unique_orders_touched: employeeMap[id].orders.size,
-      pieces_processed: employeeMap[id].pieces_processed,
-    })).sort((a, b) => b.pieces_processed - a.pieces_processed);
+    const results = Object.values(employeeMap).map((emp: any) => ({
+      employee_id: emp.id,
+      name: emp.employee_name,
+      stages_completed: emp.stages_completed,
+      unique_orders_touched: emp.orders.size,
+      pieces_processed: emp.pieces_processed,
+    })).sort((a: any, b: any) => b.pieces_processed - a.pieces_processed);
 
     return results;
   }
 
   async getStats(period: string = 'month') {
     const prod = await this.getProductivity(period);
-    
+
     const totalStages = prod.reduce((acc, p) => acc + p.stages_completed, 0);
     const totalPieces = prod.reduce((acc, p) => acc + p.pieces_processed, 0);
     const activeStaff = prod.length;
@@ -81,7 +85,7 @@ export class AccountantDashboardService {
       total_stages: totalStages,
       total_pieces: totalPieces,
       active_staff: activeStaff,
-      top_performer: topPerformer ? topPerformer.name : 'N/A'
+      top_performer: topPerformer ? topPerformer.name : 'N/A',
     };
   }
 }
