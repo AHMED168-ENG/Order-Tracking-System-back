@@ -2,6 +2,8 @@ import { Injectable, NotFoundException, ConflictException, BadRequestException }
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like, In } from 'typeorm';
 import * as XLSX from 'xlsx';
+import * as ExcelJS from 'exceljs';
+import { Response } from 'express';
 import { Order } from './entities/order.entity';
 import { OrderStage } from './entities/order-stage.entity';
 import { DEPT_MAPPING, ALL_STAGES } from '../common/constants';
@@ -20,6 +22,73 @@ export class OrdersService {
     private stageDefinitionsRepository: Repository<StageDefinition>,
   ) {}
 
+  async getExcelTemplate(res: Response) {
+    const stages = await this.stageDefinitionsRepository.find({ where: { is_active: true }, order: { order_index: 'ASC' } });
+    const stageNames = stages.map(s => s.name);
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Orders Template');
+
+    sheet.columns = [
+      { header: 'Order Number', key: 'orderNumber', width: 20 },
+      { header: 'Customer Name', key: 'customerName', width: 25 },
+      { header: 'Phone', key: 'phone', width: 15 },
+      { header: 'Address', key: 'address', width: 30 },
+      { header: 'Total Amount', key: 'totalAmount', width: 15 },
+      { header: 'Pieces', key: 'pieces', width: 10 },
+      { header: 'Stage', key: 'stage', width: 25 },
+    ];
+
+    // Add a single empty row for the user to start filling out
+    sheet.addRow({
+      orderNumber: '',
+      customerName: '',
+      phone: '',
+      address: '',
+      totalAmount: 0,
+      pieces: 1,
+      stage: stageNames[0] || 'New Batches'
+    });
+
+    // Formatting Header
+    const headerRow = sheet.getRow(1);
+    headerRow.font = { bold: true };
+    headerRow.eachCell((cell: ExcelJS.Cell) => {
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFEFEFEF' }
+      };
+      cell.border = {
+        top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'}
+      };
+    });
+
+    // Add Data Validation Dropdown to 'Stage' column (G) for the first 1000 rows
+    const stageColChar = 'G';
+    const dropDownList = `"${stageNames.join(',')}"`;
+    
+    for (let i = 2; i <= 1000; i++) {
+        sheet.getCell(`${stageColChar}${i}`).dataValidation = {
+            type: 'list',
+            allowBlank: true,
+            formulae: [dropDownList]
+        };
+    }
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename=' + 'orders_template.xlsx',
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
+  }
+
   async bulkCreateFromExcel(file: Express.Multer.File, user: any) {
     if (!file) throw new BadRequestException('No file uploaded');
 
@@ -33,6 +102,7 @@ export class OrdersService {
       success: 0,
       failed: 0,
       errors: [] as Array<{ row: number; message: string }>,
+      successfulOrders: [] as any[],
     };
 
     for (let i = 0; i < data.length; i++) {
@@ -46,6 +116,7 @@ export class OrdersService {
         const address = String(row['Address'] || row['address'] || '').trim();
         const totalAmount = Number(row['Total Amount'] || row['total_amount'] || 0);
         const pieceCount = Number(row['Pieces'] || row['pieces'] || row['Piece Count'] || row['piece_count'] || 0);
+        const stageFromExcel = String(row['Stage'] || row['stage'] || row['Current Stage'] || '').trim();
 
         if (!orderNumber || !customerName || !phone) {
           throw new Error('Missing required fields (Order Number, Customer Name, or Phone)');
@@ -56,9 +127,24 @@ export class OrdersService {
           throw new Error(`Order number ${orderNumber} already exists`);
         }
 
-        // Get first stage dynamically (or fallback to 'New Batches')
-        const firstStage = await this.stageDefinitionsRepository.findOne({ order: { order_index: 'ASC' } });
-        const initialStageName = firstStage?.name || 'New Batches';
+        // Try to use the stage from Excel, validting it exists in active stages
+        let initialStageName = 'New Batches';
+        const activeStages = await this.stageDefinitionsRepository.find({ where: { is_active: true } });
+        const validStageNames = activeStages.map(s => s.name);
+        
+        if (stageFromExcel && validStageNames.includes(stageFromExcel)) {
+             initialStageName = stageFromExcel;
+        } else {
+             // Get first stage dynamically (or fallback to 'New Batches')
+             const firstStage = activeStages.sort((a,b) => a.order_index - b.order_index)[0];
+             initialStageName = firstStage?.name || 'New Batches';
+        }
+
+        let orderStatus = 'Pending';
+        // Check if the initial stage is the last stage
+        const lastStage = activeStages.sort((a,b) => b.order_index - a.order_index)[0];
+        if (initialStageName === lastStage?.name) orderStatus = 'Completed';
+        else if (initialStageName !== validStageNames[0]) orderStatus = 'In Progress';
 
         const order = this.ordersRepository.create({
           order_number: orderNumber,
@@ -67,7 +153,7 @@ export class OrdersService {
           address,
           total_amount: totalAmount,
           piece_count: pieceCount,
-          status: 'Pending',
+          status: orderStatus,
           current_stage: initialStageName,
         });
 
@@ -77,12 +163,17 @@ export class OrdersService {
           this.stagesRepository.create({
             order_id: savedOrder.id,
             stage_name: initialStageName,
-            status: 'Pending',
+            status: orderStatus,
             notes: 'Created via bulk upload',
           }),
         );
 
         results.success++;
+        results.successfulOrders.push({
+          order_number: savedOrder.order_number,
+          customer_name: savedOrder.customer_name,
+          current_stage: savedOrder.current_stage
+        });
       } catch (err) {
         results.failed++;
         results.errors.push({ row: rowNum, message: err.message });
@@ -146,6 +237,7 @@ export class OrdersService {
     const stages = await this.stagesRepository.find({
       where: { order_id: id },
       order: { id: 'ASC' },
+      relations: ['employee'],
     });
 
     return { order, stages };
@@ -169,6 +261,7 @@ export class OrdersService {
     const stages = await this.stagesRepository.find({
       where: { order_id: order.id },
       order: { id: 'ASC' },
+      relations: ['employee'],
     });
 
     return { order, stages };
@@ -224,25 +317,13 @@ export class OrdersService {
   }
 
   async updateStage(updateStageDto: UpdateStageDto, files: any[] = [], user?: any) {
-    const { order_id, stage_name, status, notes, estimated_delivery, design_name, approve_date, tailor_name } = updateStageDto;
+    const { order_id, stage_name, status, notes, estimated_delivery } = updateStageDto;
     
     const order = await this.ordersRepository.findOne({ where: { id: order_id } });
     if (!order) throw new NotFoundException('Order not found');
 
     if (estimated_delivery) {
       order.estimated_delivery = new Date(estimated_delivery);
-    }
-    
-    if (design_name) {
-      order.design_name = design_name;
-    }
-    
-    if (approve_date) {
-      order.approve_date = new Date(approve_date);
-    }
-    
-    if (tailor_name) {
-      order.tailor_name = tailor_name;
     }
 
     const attachments = files.map(file => `/uploads/${file.filename}`);

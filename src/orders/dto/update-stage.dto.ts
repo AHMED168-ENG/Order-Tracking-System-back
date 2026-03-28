@@ -22,16 +22,4 @@ export class UpdateStageDto {
   @IsString()
   @IsOptional()
   estimated_delivery?: string;
-
-  @IsString()
-  @IsOptional()
-  design_name?: string;
-
-  @IsString()
-  @IsOptional()
-  approve_date?: string;
-
-  @IsString()
-  @IsOptional()
-  tailor_name?: string;
 }

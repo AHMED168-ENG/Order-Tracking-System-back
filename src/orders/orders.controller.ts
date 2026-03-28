@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, Request, Req, UseInterceptors, UploadedFiles, UploadedFile, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, Request, Req, UseInterceptors, UploadedFiles, UploadedFile, ForbiddenException, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { FilesInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { v4 as uuidv4 } from 'uuid';
@@ -39,6 +40,13 @@ export class OrdersController {
   ) {
     const department = ['admin', 'accountant'].includes(req.user.role) ? null : req.user.department;
     return this.ordersService.findAll(search, department, stage, +page, +limit);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'employee', 'staff')
+  @Get('excel-template')
+  async getExcelTemplate(@Res() res: Response) {
+    return this.ordersService.getExcelTemplate(res);
   }
 
   @UseGuards(JwtAuthGuard)

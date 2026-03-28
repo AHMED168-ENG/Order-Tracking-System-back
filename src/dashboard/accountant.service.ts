@@ -138,7 +138,6 @@ export class AccountantDashboardService {
           order_id: stage.order.id,
           order_number: stage.order.order_number,
           customer_name: stage.order.customer_name,
-          design_name: stage.order.design_name || 'N/A',
           pieces: stage.order.piece_count || 0,
           stage_actioned: stage.stage_name,
           action_date: stage.updated_at
