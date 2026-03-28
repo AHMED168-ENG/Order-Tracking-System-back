@@ -13,7 +13,7 @@ export class EmployeesService {
 
   async findAll(page: number = 1, limit: number = 10) {
     const [items, total] = await this.employeesRepository.findAndCount({
-      select: ['id', 'name', 'email', 'role', 'department'],
+      select: ['id', 'name', 'email', 'phone', 'role', 'department'],
       skip: (page - 1) * limit,
       take: limit,
       order: { id: 'DESC' },
@@ -60,7 +60,7 @@ export class EmployeesService {
   async findOne(id: number): Promise<Employee | null> {
     return this.employeesRepository.findOne({ 
       where: { id },
-      select: ['id', 'name', 'email', 'role', 'department'] 
+      select: ['id', 'name', 'email', 'phone', 'role', 'department']
     });
   }
 
@@ -96,12 +96,13 @@ export class EmployeesService {
       if (existing) throw new ConflictException('Email already in use by another employee');
     }
 
-    // Admin can update name, email, role, department (but NOT password via this endpoint)
-    const { name, email, role, department } = updateData;
+    // Admin can update name, email, role, department, phone
+    const { name, email, role, department, phone } = updateData;
     if (name !== undefined) employee.name = name;
     if (email !== undefined) employee.email = email;
     if (role !== undefined) employee.role = role;
     if (department !== undefined) employee.department = department;
+    if (phone !== undefined) employee.phone = phone;
 
     return this.employeesRepository.save(employee);
   }
