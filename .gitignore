@@ -81,3 +81,12 @@ typings/
 
 # TypeScript build info
 *.tsbuildinfo
+
+# Uploads
+/uploads/*
+!/uploads/.gitkeep
+
+# Environment files
+.env
+.env.*
+!.env.example
