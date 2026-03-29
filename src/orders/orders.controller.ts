@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { extname, join } from 'path';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { UpdateOrderDto } from './dto/update-order.dto';
 import { UpdateStageDto } from './dto/update-stage.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -119,5 +120,28 @@ export class OrdersController {
     }
     
     return order;
+  }
+  
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'staff', 'accountant')
+  @Post(':id/update')
+  @UseInterceptors(FileInterceptor('invoice', {
+    storage: diskStorage({
+      destination: './uploads',
+      filename: (req, file, cb) => {
+        const uniqueSuffix = uuidv4();
+        cb(null, `${uniqueSuffix}${extname(file.originalname)}`);
+      },
+    }),
+  }))
+  async update(
+    @Param('id') id: string,
+    @Body() updateOrderDto: UpdateOrderDto,
+    @UploadedFile() invoice?: Express.Multer.File,
+  ) {
+    if (invoice) {
+        updateOrderDto.invoice_image = `/uploads/${invoice.filename}`;
+    }
+    return this.ordersService.update(+id, updateOrderDto);
   }
 }

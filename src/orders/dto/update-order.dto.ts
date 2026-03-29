@@ -1,22 +1,23 @@
-import { IsNotEmpty, IsOptional, IsString, IsNumber, IsNumberString, MinLength, IsInt } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsNumberString, MinLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
-export class CreateOrderDto {
+export class UpdateOrderDto {
   @IsString()
-  @IsNotEmpty()
-  order_number: string;
+  @IsOptional()
+  order_number?: string;
 
   @IsString()
-  @IsNotEmpty()
-  customer_name: string;
+  @IsOptional()
+  customer_name?: string;
 
+  @IsOptional()
   @IsNumberString({}, { message: 'Phone must be a valid number' })
   @MinLength(10, { message: 'Phone must be at least 10 digits' })
-  phone: string;
+  phone?: string;
 
   @IsString()
-  @IsNotEmpty()
-  address: string;
+  @IsOptional()
+  address?: string;
 
   @IsOptional()
   @Type(() => Number)
@@ -25,7 +26,7 @@ export class CreateOrderDto {
 
   @IsOptional()
   @Type(() => Number)
-  @IsInt({ message: 'Piece count must be an integer' })
+  @IsNumber({}, { message: 'Piece count must be a number' })
   piece_count?: number;
 
   @IsString()
@@ -36,10 +37,10 @@ export class CreateOrderDto {
   @IsOptional()
   sales_team?: string;
 
-  @IsOptional()
-  price_details?: any[];
-
   @IsString()
   @IsOptional()
   invoice_image?: string;
+
+  @IsOptional()
+  price_details?: any;
 }

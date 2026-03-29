@@ -88,6 +88,7 @@ export class DashboardService {
       completed,
       pending,
       efficiencyRate,
+      stages: allDefinedStages,
       stagesChart,
       departmentChart: Object.keys(departmentStats).map(name => ({
         name,

@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like, In } from 'typeorm';
 import * as XLSX from 'xlsx';
@@ -9,6 +14,7 @@ import { OrderStage } from './entities/order-stage.entity';
 import { ALL_STAGES } from '../common/seed-data';
 import { StageDefinition } from '../settings/entities/stage-definition.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { UpdateOrderDto } from './dto/update-order.dto';
 import { UpdateStageDto } from './dto/update-stage.dto';
 
 @Injectable()
@@ -23,8 +29,11 @@ export class OrdersService {
   ) {}
 
   async getExcelTemplate(res: Response) {
-    const stages = await this.stageDefinitionsRepository.find({ where: { is_active: true }, order: { order_index: 'ASC' } });
-    const stageNames = stages.map(s => s.name);
+    const stages = await this.stageDefinitionsRepository.find({
+      where: { is_active: true },
+      order: { order_index: 'ASC' },
+    });
+    const stageNames = stages.map((s) => s.name);
 
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Orders Template');
@@ -47,7 +56,7 @@ export class OrdersService {
       address: '',
       totalAmount: 0,
       pieces: 1,
-      stage: stageNames[0] || 'New Batches'
+      stage: stageNames[0] || 'New Batches',
     });
 
     // Formatting Header
@@ -57,23 +66,26 @@ export class OrdersService {
       cell.fill = {
         type: 'pattern',
         pattern: 'solid',
-        fgColor: { argb: 'FFEFEFEF' }
+        fgColor: { argb: 'FFEFEFEF' },
       };
       cell.border = {
-        top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'}
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' },
       };
     });
 
     // Add Data Validation Dropdown to 'Stage' column (G) for the first 1000 rows
     const stageColChar = 'G';
     const dropDownList = `"${stageNames.join(',')}"`;
-    
+
     for (let i = 2; i <= 1000; i++) {
-        sheet.getCell(`${stageColChar}${i}`).dataValidation = {
-            type: 'list',
-            allowBlank: true,
-            formulae: [dropDownList]
-        };
+      sheet.getCell(`${stageColChar}${i}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: [dropDownList],
+      };
     }
 
     res.setHeader(
@@ -110,41 +122,66 @@ export class OrdersService {
       const rowNum = i + 2; // +1 for zero-index, +1 for header row
 
       try {
-        const orderNumber = String(row['Order Number'] || row['order_number'] || '').trim();
-        const customerName = String(row['Customer Name'] || row['customer_name'] || '').trim();
+        const orderNumber = String(
+          row['Order Number'] || row['order_number'] || '',
+        ).trim();
+        const customerName = String(
+          row['Customer Name'] || row['customer_name'] || '',
+        ).trim();
         const phone = String(row['Phone'] || row['phone'] || '').trim();
         const address = String(row['Address'] || row['address'] || '').trim();
-        const totalAmount = Number(row['Total Amount'] || row['total_amount'] || 0);
-        const pieceCount = Number(row['Pieces'] || row['pieces'] || row['Piece Count'] || row['piece_count'] || 0);
-        const stageFromExcel = String(row['Stage'] || row['stage'] || row['Current Stage'] || '').trim();
+        const totalAmount = Number(
+          row['Total Amount'] || row['total_amount'] || 0,
+        );
+        const pieceCount = Number(
+          row['Pieces'] ||
+            row['pieces'] ||
+            row['Piece Count'] ||
+            row['piece_count'] ||
+            0,
+        );
+        const stageFromExcel = String(
+          row['Stage'] || row['stage'] || row['Current Stage'] || '',
+        ).trim();
 
         if (!orderNumber || !customerName || !phone) {
-          throw new Error('Missing required fields (Order Number, Customer Name, or Phone)');
+          throw new Error(
+            'Missing required fields (Order Number, Customer Name, or Phone)',
+          );
         }
 
-        const existing = await this.ordersRepository.findOne({ where: { order_number: orderNumber } });
+        const existing = await this.ordersRepository.findOne({
+          where: { order_number: orderNumber },
+        });
         if (existing) {
           throw new Error(`Order number ${orderNumber} already exists`);
         }
 
         // Try to use the stage from Excel, validting it exists in active stages
         let initialStageName = 'New Batches';
-        const activeStages = await this.stageDefinitionsRepository.find({ where: { is_active: true } });
-        const validStageNames = activeStages.map(s => s.name);
-        
+        const activeStages = await this.stageDefinitionsRepository.find({
+          where: { is_active: true },
+        });
+        const validStageNames = activeStages.map((s) => s.name);
+
         if (stageFromExcel && validStageNames.includes(stageFromExcel)) {
-             initialStageName = stageFromExcel;
+          initialStageName = stageFromExcel;
         } else {
-             // Get first stage dynamically (or fallback to 'New Batches')
-             const firstStage = activeStages.sort((a,b) => a.order_index - b.order_index)[0];
-             initialStageName = firstStage?.name || 'New Batches';
+          // Get first stage dynamically (or fallback to 'New Batches')
+          const firstStage = activeStages.sort(
+            (a, b) => a.order_index - b.order_index,
+          )[0];
+          initialStageName = firstStage?.name || 'New Batches';
         }
 
         let orderStatus = 'Pending';
         // Check if the initial stage is the last stage
-        const lastStage = activeStages.sort((a,b) => b.order_index - a.order_index)[0];
+        const lastStage = activeStages.sort(
+          (a, b) => b.order_index - a.order_index,
+        )[0];
         if (initialStageName === lastStage?.name) orderStatus = 'Completed';
-        else if (initialStageName !== validStageNames[0]) orderStatus = 'In Progress';
+        else if (initialStageName !== validStageNames[0])
+          orderStatus = 'In Progress';
 
         const order = this.ordersRepository.create({
           order_number: orderNumber,
@@ -172,7 +209,7 @@ export class OrdersService {
         results.successfulOrders.push({
           order_number: savedOrder.order_number,
           customer_name: savedOrder.customer_name,
-          current_stage: savedOrder.current_stage
+          current_stage: savedOrder.current_stage,
         });
       } catch (err) {
         results.failed++;
@@ -183,7 +220,13 @@ export class OrdersService {
     return results;
   }
 
-  async findAll(search?: string, department?: string, stage?: string, page: number = 1, limit: number = 10) {
+  async findAll(
+    search?: string,
+    department?: string,
+    stage?: string,
+    page: number = 1,
+    limit: number = 10,
+  ) {
     const queryBuilder = this.ordersRepository.createQueryBuilder('order');
 
     if (search) {
@@ -195,17 +238,17 @@ export class OrdersService {
 
     if (department && department !== 'Management') {
       const stagesForDept = await this.stageDefinitionsRepository.find({
-        where: { department }
+        where: { department },
       });
-      const stageNames = stagesForDept.map(s => s.name);
-      
+      const stageNames = stagesForDept.map((s) => s.name);
+
       if (stageNames.length > 0) {
         queryBuilder.andWhere('order.current_stage IN (:...stages)', {
           stages: stageNames,
         });
       } else {
         // If no stages found for this dept, show nothing (or handle error)
-        queryBuilder.andWhere('1=0'); 
+        queryBuilder.andWhere('1=0');
       }
     }
 
@@ -233,7 +276,7 @@ export class OrdersService {
   async findOne(id: number) {
     const order = await this.ordersRepository.findOne({ where: { id } });
     if (!order) throw new NotFoundException('Order not found');
-    
+
     const stages = await this.stagesRepository.find({
       where: { order_id: id },
       order: { id: 'ASC' },
@@ -252,12 +295,14 @@ export class OrdersService {
   }
 
   async trackOrder(order_number: string) {
-    const order = await this.ordersRepository.findOne({ where: { order_number } });
+    const order = await this.ordersRepository.findOne({
+      where: { order_number },
+    });
     if (!order) throw new NotFoundException('Order not found');
-    
+
     // Hide sensitive fields for public tracking
     delete (order as any).invoice_image;
-    
+
     const stages = await this.stagesRepository.find({
       where: { order_id: order.id },
       order: { id: 'ASC' },
@@ -272,13 +317,13 @@ export class OrdersService {
       order: { order_number: 'DESC' },
     });
 
-    if (!lastOrder) return 'ORD-2024001';
+    if (!lastOrder) return 'SEN-2024001';
 
     const match = lastOrder.order_number.match(/(\d+)/);
-    if (!match) return 'ORD-2024001';
+    if (!match) return 'SEN-2024001';
 
     const nextNum = parseInt(match[0]) + 1;
-    return `ORD-${nextNum}`;
+    return `SEN-${nextNum}`;
   }
 
   async create(createOrderDto: CreateOrderDto, user: any) {
@@ -286,23 +331,36 @@ export class OrdersService {
       where: { order_number: createOrderDto.order_number },
     });
     if (existing) {
-      throw new ConflictException(`Order number ${createOrderDto.order_number} already exists`);
+      throw new ConflictException(
+        `Order number ${createOrderDto.order_number} already exists`,
+      );
     }
     // Get first stage dynamically
-    const firstStage = await this.stageDefinitionsRepository.findOne({ 
-      where: {}, 
-      order: { order_index: 'ASC' } 
+    const firstStage = await this.stageDefinitionsRepository.findOne({
+      where: {},
+      order: { order_index: 'ASC' },
     });
     const initialStageName = firstStage?.name || 'New Batches';
 
+    // Handle price_details parsing if it's a string (from FormData)
+    let priceDetails = createOrderDto.price_details;
+    if (typeof priceDetails === 'string') {
+      try {
+        priceDetails = JSON.parse(priceDetails);
+      } catch (e) {
+        priceDetails = [];
+      }
+    }
+
     const newOrder = this.ordersRepository.create({
       ...createOrderDto,
+      price_details: priceDetails,
       piece_count: createOrderDto.piece_count || 0,
       invoice_image: createOrderDto.invoice_image || undefined,
       status: 'Pending',
       current_stage: initialStageName,
     });
-    
+
     const savedOrder = await this.ordersRepository.save(newOrder);
 
     const initialStage = this.stagesRepository.create({
@@ -316,17 +374,24 @@ export class OrdersService {
     return savedOrder;
   }
 
-  async updateStage(updateStageDto: UpdateStageDto, files: any[] = [], user?: any) {
-    const { order_id, stage_name, status, notes, estimated_delivery } = updateStageDto;
-    
-    const order = await this.ordersRepository.findOne({ where: { id: order_id } });
+  async updateStage(
+    updateStageDto: UpdateStageDto,
+    files: any[] = [],
+    user?: any,
+  ) {
+    const { order_id, stage_name, status, notes, estimated_delivery } =
+      updateStageDto;
+
+    const order = await this.ordersRepository.findOne({
+      where: { id: order_id },
+    });
     if (!order) throw new NotFoundException('Order not found');
 
     if (estimated_delivery) {
       order.estimated_delivery = new Date(estimated_delivery);
     }
 
-    const attachments = files.map(file => `/uploads/${file.filename}`);
+    const attachments = files.map((file) => `/uploads/${file.filename}`);
 
     const newStage = this.stagesRepository.create({
       order_id,
@@ -341,21 +406,22 @@ export class OrdersService {
     // Dynamic status determination
     const lastStage = await this.stageDefinitionsRepository.findOne({
       order: { order_index: 'DESC' },
-      where: { is_active: true }
+      where: { is_active: true },
     });
-    
+
     const firstStage = await this.stageDefinitionsRepository.findOne({
       order: { order_index: 'ASC' },
-      where: { is_active: true }
+      where: { is_active: true },
     });
 
     let orderStatus = 'In Progress';
     if (stage_name === lastStage?.name) orderStatus = 'Completed';
-    else if (stage_name === firstStage?.name && status === 'Pending') orderStatus = 'Pending';
-    
+    else if (stage_name === firstStage?.name && status === 'Pending')
+      orderStatus = 'Pending';
+
     order.current_stage = stage_name;
     order.status = orderStatus;
-    
+
     const savedOrder = await this.ordersRepository.save(order);
 
     // Auto-transition logic
@@ -375,6 +441,49 @@ export class OrdersService {
     }
 
     return savedOrder;
+  }
+
+  async update(id: number, updateOrderDto: UpdateOrderDto) {
+    const order = await this.ordersRepository.findOne({ where: { id } });
+    if (!order) throw new NotFoundException('Order not found');
+
+    // Handle price_details parsing if it's a string
+    let priceDetails = updateOrderDto.price_details;
+    if (typeof priceDetails === 'string') {
+      try {
+        priceDetails = JSON.parse(priceDetails);
+      } catch (e) {
+        // keep old or set empty
+      }
+    }
+
+    if (priceDetails) {
+      order.price_details = priceDetails;
+      // Re-calculate totals if price_details changed
+      if (Array.isArray(priceDetails)) {
+        order.total_amount = priceDetails.reduce(
+          (sum, item) => sum + Number(item.price) * Number(item.quantity),
+          0,
+        );
+        order.piece_count = priceDetails.reduce(
+          (sum, item) => sum + Number(item.quantity),
+          0,
+        );
+      }
+    }
+
+    // Map other fields
+    if (updateOrderDto.customer_name)
+      order.customer_name = updateOrderDto.customer_name;
+    if (updateOrderDto.phone) order.phone = updateOrderDto.phone;
+    if (updateOrderDto.address) order.address = updateOrderDto.address;
+    if (updateOrderDto.sales_team) order.sales_team = updateOrderDto.sales_team;
+    if (updateOrderDto.estimated_delivery)
+      order.estimated_delivery = new Date(updateOrderDto.estimated_delivery);
+    if (updateOrderDto.order_number) order.order_number = updateOrderDto.order_number;
+    if (updateOrderDto.invoice_image) order.invoice_image = updateOrderDto.invoice_image;
+
+    return this.ordersRepository.save(order);
   }
 
   async saveOrder(order: Order) {

@@ -36,6 +36,12 @@ export class Order {
   @Column({ type: 'date', nullable: true })
   estimated_delivery: Date;
 
+  @Column({ length: 100, nullable: true })
+  sales_team: string;
+
+  @Column({ type: 'jsonb', nullable: true })
+  price_details: any;
+
   @OneToMany(() => OrderStage, (stage) => stage.order, { cascade: true })
   stages: OrderStage[];
 
