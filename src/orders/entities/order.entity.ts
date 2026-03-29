@@ -39,6 +39,9 @@ export class Order {
   @Column({ length: 100, nullable: true })
   sales_team: string;
 
+  @Column({ length: 100, nullable: true })
+  filing_team_name: string;
+
   @Column({ type: 'jsonb', nullable: true })
   price_details: any;
 

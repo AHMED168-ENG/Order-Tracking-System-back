@@ -39,6 +39,10 @@ export class UpdateOrderDto {
 
   @IsString()
   @IsOptional()
+  filing_team_name?: string;
+
+  @IsString()
+  @IsOptional()
   invoice_image?: string;
 
   @IsOptional()

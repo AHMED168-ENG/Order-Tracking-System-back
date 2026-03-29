@@ -317,13 +317,13 @@ export class OrdersService {
       order: { order_number: 'DESC' },
     });
 
-    if (!lastOrder) return 'SEN-2024001';
+    if (!lastOrder) return 'SNC2024001';
 
     const match = lastOrder.order_number.match(/(\d+)/);
-    if (!match) return 'SEN-2024001';
+    if (!match) return 'SNC2024001';
 
     const nextNum = parseInt(match[0]) + 1;
-    return `SEN-${nextNum}`;
+    return `SNC${nextNum}`;
   }
 
   async create(createOrderDto: CreateOrderDto, user: any) {
@@ -478,6 +478,7 @@ export class OrdersService {
     if (updateOrderDto.phone) order.phone = updateOrderDto.phone;
     if (updateOrderDto.address) order.address = updateOrderDto.address;
     if (updateOrderDto.sales_team) order.sales_team = updateOrderDto.sales_team;
+    if (updateOrderDto.filing_team_name) order.filing_team_name = updateOrderDto.filing_team_name;
     if (updateOrderDto.estimated_delivery)
       order.estimated_delivery = new Date(updateOrderDto.estimated_delivery);
     if (updateOrderDto.order_number) order.order_number = updateOrderDto.order_number;
