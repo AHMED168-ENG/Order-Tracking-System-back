@@ -6,7 +6,7 @@ import * as ExcelJS from 'exceljs';
 import { Response } from 'express';
 import { Order } from './entities/order.entity';
 import { OrderStage } from './entities/order-stage.entity';
-import { DEPT_MAPPING, ALL_STAGES } from '../common/constants';
+import { ALL_STAGES } from '../common/seed-data';
 import { StageDefinition } from '../settings/entities/stage-definition.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateStageDto } from './dto/update-stage.dto';

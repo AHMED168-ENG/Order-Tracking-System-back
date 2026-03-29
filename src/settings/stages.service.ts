@@ -2,7 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { StageDefinition } from './entities/stage-definition.entity';
-import { ALL_STAGES, DEPT_MAPPING } from '../common/constants';
+import { ALL_STAGES, DEPT_MAPPING } from '../common/seed-data';
 
 @Injectable()
 export class StagesService implements OnModuleInit {

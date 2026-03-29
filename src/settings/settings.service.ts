@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AppSetting } from './entities/app-setting.entity';
+import { DEFAULT_SETTINGS } from '../common/seed-data';
 
 @Injectable()
 export class SettingsService implements OnModuleInit {
@@ -14,13 +15,7 @@ export class SettingsService implements OnModuleInit {
     const count = await this.settingsRepository.count();
     if (count === 0) {
       await this.settingsRepository.save(
-        this.settingsRepository.create({
-          phone_numbers: 'Not set',
-          whatsapp: '',
-          facebook_url: '',
-          instagram_url: '',
-          address: '',
-        }),
+        this.settingsRepository.create(DEFAULT_SETTINGS),
       );
     }
   }
@@ -30,13 +25,7 @@ export class SettingsService implements OnModuleInit {
       const settings = await this.settingsRepository.find();
       if (settings.length === 0) {
         console.log('No settings found, creating default...');
-        const newSettings = this.settingsRepository.create({
-          phone_numbers: 'Not set',
-          whatsapp: '',
-          facebook_url: '',
-          instagram_url: '',
-          address: '',
-        });
+        const newSettings = this.settingsRepository.create(DEFAULT_SETTINGS);
         return await this.settingsRepository.save(newSettings);
       }
       return settings[0];

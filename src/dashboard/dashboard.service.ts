@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Order } from '../orders/entities/order.entity';
 import { OrderStage } from '../orders/entities/order-stage.entity';
-import { DEPT_MAPPING, ALL_STAGES } from '../common/constants';
+import { DEPT_MAPPING, ALL_STAGES } from '../common/seed-data';
 import { StageDefinition } from '../settings/entities/stage-definition.entity';
 
 @Injectable()

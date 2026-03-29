@@ -4,6 +4,9 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Employee } from './employees/entities/employee.entity';
 import { Order } from './orders/entities/order.entity';
 import { OrderStage } from './orders/entities/order-stage.entity';
+import { AppSetting } from './settings/entities/app-setting.entity';
+import { StageDefinition } from './settings/entities/stage-definition.entity';
+import { CORE_ACCOUNTS, DEFAULT_SETTINGS, ALL_STAGES, DEPT_MAPPING } from './common/seed-data';
 import * as bcrypt from 'bcryptjs';
 
 async function bootstrap() {
@@ -12,127 +15,109 @@ async function bootstrap() {
   const employeeRepo = app.get(getRepositoryToken(Employee));
   const orderRepo = app.get(getRepositoryToken(Order));
   const stageRepo = app.get(getRepositoryToken(OrderStage));
+  const settingRepo = app.get(getRepositoryToken(AppSetting));
+  const stageDefRepo = app.get(getRepositoryToken(StageDefinition));
 
-  console.log('Starting exact TypeORM database seed...');
+  console.log('Starting comprehensive database seed (Refactored)...');
 
-  // Seed Admin
-  const adminEmail = 'admin@factory.com';
-  const existingAdmin = await employeeRepo.findOne({
-    where: { email: adminEmail },
-  });
-  if (!existingAdmin) {
-    console.log('Seeding Admin...');
-    const hashedPwd = await bcrypt.hash('password123', 10);
-    await employeeRepo.save({
-      name: 'Admin User',
-      department: 'Management',
-      role: 'admin',
-      email: adminEmail,
-      password: hashedPwd,
-    });
+  // 1. Seed App Settings
+  const settingsCount = await settingRepo.count();
+  if (settingsCount === 0) {
+    console.log('Seeding App Settings...');
+    await settingRepo.save(settingRepo.create(DEFAULT_SETTINGS));
   }
 
-  // Seed Accountant
-  const acctEmail = 'accountant@factory.com';
-  const existingAcct = await employeeRepo.findOne({
-    where: { email: acctEmail },
-  });
-  if (!existingAcct) {
-    console.log('Seeding Accountant...');
-    const hashedPwd = await bcrypt.hash('password123', 10);
-    await employeeRepo.save({
-      name: 'Main Accountant',
-      department: 'Finance',
-      role: 'accountant',
-      email: acctEmail,
-      password: hashedPwd,
-    });
+  // 2. Seed Stage Definitions
+  const stageDefCount = await stageDefRepo.count();
+  if (stageDefCount === 0) {
+    console.log('Seeding Stage Definitions...');
+    const stageDefs = ALL_STAGES.map((name, index) => ({
+      name,
+      department: DEPT_MAPPING[name] || 'Other',
+      order_index: index,
+      is_active: true
+    }));
+    await stageDefRepo.save(stageDefRepo.create(stageDefs));
   }
 
-  // Seed Staff
-  const staffEmail = 'staff@factory.com';
-  const existingStaff = await employeeRepo.findOne({
-    where: { email: staffEmail },
-  });
-  if (!existingStaff) {
-    console.log('Seeding Staff...');
-    const hashedPwd = await bcrypt.hash('password123', 10);
-    await employeeRepo.save({
-      name: 'Factory Worker',
-      department: 'Production',
-      role: 'employee',
-      email: staffEmail,
-      password: hashedPwd,
-    });
+  // 3. Seed Core Accounts
+  console.log('Seeding Core Accounts...');
+  for (const account of CORE_ACCOUNTS) {
+    const existing = await employeeRepo.findOne({ where: { email: account.email } });
+    if (!existing) {
+      const hashed = await bcrypt.hash(account.password, 10);
+      await employeeRepo.save(employeeRepo.create({
+        ...account,
+        password: hashed
+      }));
+    }
   }
 
-  // Seed Dummy Orders
-  // We want to seed even if there are some orders, to ensure we have enough for pagination
-  console.log('Seeding 25 Orders for Pagination Test...');
-  for (let i = 1; i <= 25; i++) {
-    const orderNumber = `ORD-${2024000 + i}`;
-    const existing = await orderRepo.findOne({
-      where: { order_number: orderNumber },
-    });
-    if (existing) continue;
+  // 4. Seed Dummy Orders for Pagination/UI testing
+  const orderCount = await orderRepo.count();
+  if (orderCount < 10) {
+    console.log('Seeding 25 Orders for testing...');
+    for (let i = 1; i <= 25; i++) {
+      const orderNumber = `ORD-${2024000 + i}`;
+      const existing = await orderRepo.findOne({ where: { order_number: orderNumber } });
+      if (existing) continue;
 
-    const order = orderRepo.create({
-      order_number: orderNumber,
-      customer_name: `Test Customer ${i}`,
-      phone: `010000000${i.toString().padStart(2, '0')}`,
-      address: `Test Address ${i}`,
-      total_amount: 1000 + i * 100,
-      status: 'Pending',
-      current_stage: 'New Batches',
-    });
-    const savedOrder = await orderRepo.save(order);
+      const order = orderRepo.create({
+        order_number: orderNumber,
+        customer_name: `Test Customer ${i}`,
+        phone: `010000000${i.toString().padStart(2, '0')}`,
+        address: `Test Address ${i}`,
+        total_amount: 1000 + i * 100,
+        status: 'Pending',
+        current_stage: 'New Batches',
+      });
+      const savedOrder = await orderRepo.save(order);
 
-    const stage = stageRepo.create({
-      order_id: savedOrder.id,
-      stage_name: 'New Batches',
-      status: 'Pending',
-      notes: 'Initial seed',
-    });
-    await stageRepo.save(stage);
+      const stage = stageRepo.create({
+        order_id: savedOrder.id,
+        stage_name: 'New Batches',
+        status: 'Pending',
+        notes: 'Initial seed',
+      });
+      await stageRepo.save(stage);
+    }
   }
 
-  console.log('Seeding 15 Employees for Pagination Test...');
-  for (let i = 1; i <= 15; i++) {
-    const email = `staff${i}@factory.com`;
-    const existing = await employeeRepo.findOne({ where: { email } });
-    if (existing) continue;
+  // 5. Seed Additional Staff for Pagination
+  const totalEmployees = await employeeRepo.count();
+  if (totalEmployees < 10) {
+    console.log('Seeding 15 Additional Staff for testing...');
+    for (let i = 1; i <= 15; i++) {
+      const email = `staff${i}@factory.com`;
+      const existing = await employeeRepo.findOne({ where: { email } });
+      if (existing) continue;
 
-    const hashedPwd = await bcrypt.hash('password123', 10);
-    await employeeRepo.save({
-      name: `Factory Staff ${i}`,
-      department: i % 2 === 0 ? 'Production' : 'QA Dept',
-      role: 'employee',
-      email: email,
-      password: hashedPwd,
-    });
+      const hashedPwd = await bcrypt.hash('password123', 10);
+      await employeeRepo.save({
+        name: `Factory Staff ${i}`,
+        department: i % 2 === 0 ? 'Production' : 'QA Dept',
+        role: 'employee',
+        email: email,
+        password: hashedPwd,
+      });
+    }
   }
 
-  // Backfill historical OrderStage records with employee_ids
-  // The `stageRepo` is already defined at the top of the function.
+  // 6. Backfill historical OrderStage records with employee_ids
   const stagesWithoutEmployee = await stageRepo.find({ where: { employee_id: null } });
   if (stagesWithoutEmployee.length > 0) {
     console.log(`Backfilling ${stagesWithoutEmployee.length} historical stages with employee IDs...`);
-    const allStaff = await employeeRepo.find(); // Assuming all employees can be staff
+    const allStaff = await employeeRepo.find();
     if (allStaff.length > 0) {
       for (const stage of stagesWithoutEmployee) {
-        // Randomly assign to a staff member
         const randomStaff = allStaff[Math.floor(Math.random() * allStaff.length)];
         stage.employee_id = randomStaff.id;
       }
       await stageRepo.save(stagesWithoutEmployee);
-      console.log('Backfill complete!');
-    } else {
-      console.log('No staff found to backfill employee IDs for stages.');
     }
   }
 
-
-  console.log('Database exact seeding complete!');
+  console.log('Comprehensive database seeding complete!');
   await app.close();
 }
 

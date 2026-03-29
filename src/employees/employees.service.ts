@@ -1,15 +1,32 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import { Injectable, ConflictException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Employee } from './entities/employee.entity';
+import { CORE_ACCOUNTS } from '../common/seed-data';
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
-export class EmployeesService {
+export class EmployeesService implements OnModuleInit {
   constructor(
     @InjectRepository(Employee)
     private employeesRepository: Repository<Employee>,
   ) {}
+
+  async onModuleInit() {
+    const adminExists = await this.employeesRepository.findOne({ where: { role: 'admin' } });
+    if (!adminExists) {
+      console.log('Seeding initial accounts...');
+      
+      for (const account of CORE_ACCOUNTS) {
+        const hashed = await bcrypt.hash(account.password, 10);
+        await this.employeesRepository.save(this.employeesRepository.create({
+          ...account,
+          password: hashed
+        }));
+      }
+      console.log('Initial accounts seeded successfully.');
+    }
+  }
 
   async findAll(page: number = 1, limit: number = 10) {
     const [items, total] = await this.employeesRepository.findAndCount({
