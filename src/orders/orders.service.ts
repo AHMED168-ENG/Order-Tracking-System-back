@@ -346,13 +346,13 @@ export class OrdersService {
       order: { order_number: 'DESC' },
     });
 
-    if (!lastOrder) return 'SNC2024001';
+    if (!lastOrder) return 'SEN2024001';
 
     const match = lastOrder.order_number.match(/(\d+)/);
-    if (!match) return 'SNC2024001';
+    if (!match) return 'SEN2024001';
 
     const nextNum = parseInt(match[0]) + 1;
-    return `SNC${nextNum}`;
+    return `SEN${nextNum}`;
   }
 
   async create(createOrderDto: CreateOrderDto, user: any) {
