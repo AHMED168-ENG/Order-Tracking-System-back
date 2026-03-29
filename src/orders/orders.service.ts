@@ -46,6 +46,8 @@ export class OrdersService {
       { header: 'Total Amount', key: 'totalAmount', width: 15 },
       { header: 'Pieces', key: 'pieces', width: 10 },
       { header: 'Stage', key: 'stage', width: 25 },
+      { header: 'B.C.D', key: 'bcd', width: 15 },
+      { header: 'F C D', key: 'fcd', width: 15 },
       { header: 'Sales Team', key: 'salesTeam', width: 20 },
       { header: 'Filing Team', key: 'filingTeam', width: 20 },
       { header: 'Deposit', key: 'deposit', width: 15 },
@@ -149,6 +151,8 @@ export class OrdersService {
         const stageFromExcel = String(
           row['Stage'] || row['stage'] || row['Current Stage'] || '',
         ).trim();
+        const bcd = row['B.C.D'] || row['bcd'] || null;
+        const fcdValue = row['F C D'] || row['fcd'] || null;
         const salesTeam = String(
           row['Sales Team'] || row['sales_team'] || '',
         ).trim();
@@ -208,6 +212,8 @@ export class OrdersService {
           piece_count: pieceCount,
           status: orderStatus,
           current_stage: initialStageName,
+          estimated_delivery: bcd ? new Date(bcd) : null,
+          fcd: fcdValue ? new Date(fcdValue) : null,
           sales_team: salesTeam || null,
           filing_team_name: filingTeam || null,
           deposit: deposit || null,
@@ -503,6 +509,7 @@ export class OrdersService {
     if (updateOrderDto.deposit) order.deposit = updateOrderDto.deposit;
     if (updateOrderDto.estimated_delivery)
       order.estimated_delivery = new Date(updateOrderDto.estimated_delivery);
+    if (updateOrderDto.fcd) order.fcd = new Date(updateOrderDto.fcd);
     if (updateOrderDto.order_number)
       order.order_number = updateOrderDto.order_number;
     if (updateOrderDto.invoice_image)

@@ -34,7 +34,10 @@ export class Order {
   current_stage: string;
 
   @Column({ type: 'date', nullable: true })
-  estimated_delivery: Date;
+  estimated_delivery: Date | null; // B.C.D
+
+  @Column({ type: 'date', nullable: true })
+  fcd: Date | null;
 
   @Column({ type: 'varchar', length: 100, nullable: true })
   sales_team: string | null;
