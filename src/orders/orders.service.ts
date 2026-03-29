@@ -534,7 +534,7 @@ export class OrdersService {
           order_id: order.id,
           stage_name: newStage,
           status: newStatus || order.status,
-          notes: `Updated via Edit Order form`,
+          notes: updateOrderDto.notes || `Updated via Edit Order form`,
         }),
       );
     } else if (newStatus && newStatus !== order.status) {
@@ -544,7 +544,17 @@ export class OrdersService {
           order_id: order.id,
           stage_name: order.current_stage,
           status: newStatus,
-          notes: `Status updated via Edit Order form`,
+          notes: updateOrderDto.notes || `Status updated via Edit Order form`,
+        }),
+      );
+    } else if (updateOrderDto.notes) {
+      // If ONLY notes were added to the current stage
+      await this.stagesRepository.save(
+        this.stagesRepository.create({
+          order_id: order.id,
+          stage_name: order.current_stage,
+          status: order.status,
+          notes: updateOrderDto.notes,
         }),
       );
     }

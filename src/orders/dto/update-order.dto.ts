@@ -67,4 +67,8 @@ export class UpdateOrderDto {
   @IsString()
   @IsOptional()
   status?: string;
+
+  @IsString()
+  @IsOptional()
+  notes?: string;
 }
