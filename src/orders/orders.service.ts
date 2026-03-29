@@ -532,11 +532,34 @@ export class OrdersService {
       readinessNote += `Cutting marked as ${order.is_cutting_completed ? 'READY' : 'PENDING'}. `;
     }
 
-    // Validation: Cannot move to 'Ready for Embroidery' or beyond if not ready
+    // Auto-transition: If both are ready, move to Ready for Embroidery
+    if (order.is_design_completed && order.is_cutting_completed) {
+      const embroideryStage = 'Ready for Embroidery';
+      const currentIdx = ALL_STAGES.indexOf(order.current_stage);
+      const embroideryIdx = ALL_STAGES.indexOf(embroideryStage);
+      const isCurrentlyInProduction = order.current_stage === 'Design' || order.current_stage === 'Cutting';
+      
+      if (embroideryIdx !== -1 && currentIdx < embroideryIdx && isCurrentlyInProduction) {
+        order.current_stage = embroideryStage;
+        readinessNote += `System: Production Traversal Complete. Auto-advanced to "${embroideryStage}". `;
+        readinessChanged = true;
+      }
+    }
+
+    // Validation: 
     if (newStage && newStage !== oldStage) {
+      const oldIdx = ALL_STAGES.indexOf(oldStage);
       const stageIndex = ALL_STAGES.indexOf(newStage);
       const readyForEmbroideryIndex = ALL_STAGES.indexOf('Ready for Embroidery');
       
+      // 1. No Backtracking
+      if (stageIndex < oldIdx && oldIdx !== -1) {
+        throw new BadRequestException(
+          `Cannot move order back to "${newStage}". Progress must be forward only.`,
+        );
+      }
+      
+      // 2. Production Lock (already implemented)
       if (stageIndex >= readyForEmbroideryIndex && readyForEmbroideryIndex !== -1) {
         if (!order.is_design_completed || !order.is_cutting_completed) {
           throw new BadRequestException(
