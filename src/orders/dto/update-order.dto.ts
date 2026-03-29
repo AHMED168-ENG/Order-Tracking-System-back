@@ -71,4 +71,10 @@ export class UpdateOrderDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @IsOptional()
+  is_design_completed?: boolean;
+
+  @IsOptional()
+  is_cutting_completed?: boolean;
 }

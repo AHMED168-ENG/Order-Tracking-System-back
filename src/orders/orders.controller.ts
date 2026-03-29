@@ -33,14 +33,15 @@ export class OrdersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Get()
   findAll(
+    @Req() req: any,
     @Query('search') search: string,
     @Query('stage') stage: string,
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '10',
-    @Req() req: any,
+    @Query('employeeId') employeeId?: string,
   ) {
     const department = ['admin', 'accountant'].includes(req.user.role) ? null : req.user.department;
-    return this.ordersService.findAll(search, department, stage, +page, +limit);
+    return this.ordersService.findAll(search, department, stage, +page, +limit, employeeId ? +employeeId : undefined);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -137,11 +138,12 @@ export class OrdersController {
   async update(
     @Param('id') id: string,
     @Body() updateOrderDto: UpdateOrderDto,
+    @Request() req: any,
     @UploadedFile() invoice?: Express.Multer.File,
   ) {
     if (invoice) {
         updateOrderDto.invoice_image = `/uploads/${invoice.filename}`;
     }
-    return this.ordersService.update(+id, updateOrderDto);
+    return this.ordersService.update(+id, updateOrderDto, req.user);
   }
 }

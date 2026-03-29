@@ -255,12 +255,13 @@ export class OrdersService {
     stage?: string,
     page: number = 1,
     limit: number = 10,
+    employeeId?: number,
   ) {
     const queryBuilder = this.ordersRepository.createQueryBuilder('order');
 
     if (search) {
       queryBuilder.andWhere(
-        '(order.order_number LIKE :search OR order.customer_name LIKE :search)',
+        '(order.order_number LIKE :search OR order.customer_name LIKE :search OR order.phone LIKE :search)',
         { search: `%${search}%` },
       );
     }
@@ -283,6 +284,12 @@ export class OrdersService {
 
     if (stage) {
       queryBuilder.andWhere('order.current_stage = :stage', { stage });
+    }
+
+    if (employeeId) {
+      queryBuilder
+        .innerJoin('order.stages', 'history')
+        .andWhere('history.employee_id = :employeeId', { employeeId });
     }
 
     const [items, total] = await queryBuilder
@@ -453,26 +460,12 @@ export class OrdersService {
 
     const savedOrder = await this.ordersRepository.save(order);
 
-    // Auto-transition logic
-    if (stage_name === 'Design & Cut Pieces Ready') {
-      const nextStageName = 'Ready for Embroidery';
-      const autoStage = this.stagesRepository.create({
-        order_id,
-        stage_name: nextStageName,
-        status: 'Pending',
-        notes: 'Auto-transitioned from Design & Cut Pieces Ready',
-        attachments: [],
-        employee_id: user?.id,
-      });
-      await this.stagesRepository.save(autoStage);
-      savedOrder.current_stage = nextStageName;
-      return this.ordersRepository.save(savedOrder);
-    }
+    return savedOrder;
 
     return savedOrder;
   }
 
-  async update(id: number, updateOrderDto: UpdateOrderDto) {
+  async update(id: number, updateOrderDto: UpdateOrderDto, user?: any) {
     const order = await this.ordersRepository.findOne({ where: { id } });
     if (!order) throw new NotFoundException('Order not found');
 
@@ -518,11 +511,40 @@ export class OrdersService {
       order.order_number = updateOrderDto.order_number;
     if (updateOrderDto.invoice_image)
       order.invoice_image = updateOrderDto.invoice_image;
-
+    
     // Handle Stage and Status transitions
     const oldStage = order.current_stage;
     const newStage = updateOrderDto.current_stage;
     const newStatus = updateOrderDto.status;
+    
+    // Restore readiness flags
+    let readinessChanged = false;
+    let readinessNote = '';
+
+    if (updateOrderDto.is_design_completed !== undefined && updateOrderDto.is_design_completed !== order.is_design_completed) {
+      order.is_design_completed = updateOrderDto.is_design_completed;
+      readinessChanged = true;
+      readinessNote += `Design marked as ${order.is_design_completed ? 'READY' : 'PENDING'}. `;
+    }
+    if (updateOrderDto.is_cutting_completed !== undefined && updateOrderDto.is_cutting_completed !== order.is_cutting_completed) {
+      order.is_cutting_completed = updateOrderDto.is_cutting_completed;
+      readinessChanged = true;
+      readinessNote += `Cutting marked as ${order.is_cutting_completed ? 'READY' : 'PENDING'}. `;
+    }
+
+    // Validation: Cannot move to 'Ready for Embroidery' or beyond if not ready
+    if (newStage && newStage !== oldStage) {
+      const stageIndex = ALL_STAGES.indexOf(newStage);
+      const readyForEmbroideryIndex = ALL_STAGES.indexOf('Ready for Embroidery');
+      
+      if (stageIndex >= readyForEmbroideryIndex && readyForEmbroideryIndex !== -1) {
+        if (!order.is_design_completed || !order.is_cutting_completed) {
+          throw new BadRequestException(
+            `Cannot move to "${newStage}" until both Design and Cutting are marked as READY.`,
+          );
+        }
+      }
+    }
 
     if (newStatus) order.status = newStatus;
 
@@ -534,6 +556,7 @@ export class OrdersService {
           order_id: order.id,
           stage_name: newStage,
           status: newStatus || order.status,
+          employee_id: user?.id,
           notes: updateOrderDto.notes || `Updated via Edit Order form`,
         }),
       );
@@ -544,7 +567,19 @@ export class OrdersService {
           order_id: order.id,
           stage_name: order.current_stage,
           status: newStatus,
+          employee_id: user?.id,
           notes: updateOrderDto.notes || `Status updated via Edit Order form`,
+        }),
+      );
+    } else if (readinessChanged) {
+      // If only readiness flags changed
+      await this.stagesRepository.save(
+        this.stagesRepository.create({
+          order_id: order.id,
+          stage_name: order.current_stage,
+          status: order.status,
+          employee_id: user?.id,
+          notes: updateOrderDto.notes || readinessNote.trim() || `Readiness status updated`,
         }),
       );
     } else if (updateOrderDto.notes) {
@@ -554,6 +589,7 @@ export class OrdersService {
           order_id: order.id,
           stage_name: order.current_stage,
           status: order.status,
+          employee_id: user?.id,
           notes: updateOrderDto.notes,
         }),
       );

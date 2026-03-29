@@ -23,15 +23,7 @@ export class StagesService implements OnModuleInit {
       await this.stagesRepository.save(this.stagesRepository.create(initialStages));
     }
 
-    // Auto-migrate legacy stages to the new merged stage
-    const cutPieces = await this.stagesRepository.findOne({ where: { name: 'Cut pieces ready' } });
-    if (cutPieces) {
-      await this.stagesRepository.update(cutPieces.id, { name: 'Design & Cut Pieces Ready' });
-    }
-    const designReady = await this.stagesRepository.findOne({ where: { name: 'Design ready' } });
-    if (designReady) {
-      await this.stagesRepository.delete(designReady.id);
-    }
+    // Legacy migration logic removed as we are now splitting Design and Cutting.
   }
 
   async findAll() {

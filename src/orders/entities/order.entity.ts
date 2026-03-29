@@ -50,7 +50,12 @@ export class Order {
 
   @Column({ type: 'varchar', length: 100, nullable: true })
   deposit: string | null;
-  
+
+  @Column({ type: 'boolean', default: false })
+  is_design_completed: boolean;
+
+  @Column({ type: 'boolean', default: false })
+  is_cutting_completed: boolean;
 
   @Column({ type: 'jsonb', nullable: true })
   price_details: any;

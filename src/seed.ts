@@ -27,17 +27,24 @@ async function bootstrap() {
     await settingRepo.save(settingRepo.create(DEFAULT_SETTINGS));
   }
 
-  // 2. Seed Stage Definitions
-  const stageDefCount = await stageDefRepo.count();
-  if (stageDefCount === 0) {
-    console.log('Seeding Stage Definitions...');
-    const stageDefs = ALL_STAGES.map((name, index) => ({
-      name,
-      department: DEPT_MAPPING[name] || 'Other',
-      order_index: index,
-      is_active: true
-    }));
-    await stageDefRepo.save(stageDefRepo.create(stageDefs));
+  // 2. Seed Stage Definitions (Enhanced to sync missing stages)
+  console.log('Synchronizing Stage Definitions...');
+  for (const [index, name] of ALL_STAGES.entries()) {
+    const existing = await stageDefRepo.findOne({ where: { name } });
+    if (!existing) {
+      console.log(`Adding missing stage: ${name}`);
+      await stageDefRepo.save(stageDefRepo.create({
+        name,
+        department: DEPT_MAPPING[name] || 'Other',
+        order_index: index,
+        is_active: true
+      }));
+    } else {
+      // Sync order_index and department if they changed
+      existing.order_index = index;
+      existing.department = DEPT_MAPPING[name] || 'Other';
+      await stageDefRepo.save(existing);
+    }
   }
 
   // 3. Seed Core Accounts
