@@ -48,6 +48,7 @@ export class OrdersService {
       { header: 'Stage', key: 'stage', width: 25 },
       { header: 'B.C.D', key: 'bcd', width: 15 },
       { header: 'F C D', key: 'fcd', width: 15 },
+      { header: 'Inner Print', key: 'innerPrint', width: 15 },
       { header: 'Sales Team', key: 'salesTeam', width: 20 },
       { header: 'Filing Team', key: 'filingTeam', width: 20 },
       { header: 'Deposit', key: 'deposit', width: 15 },
@@ -153,6 +154,7 @@ export class OrdersService {
         ).trim();
         const bcd = row['B.C.D'] || row['bcd'] || null;
         const fcdValue = row['F C D'] || row['fcd'] || null;
+        const innerPrint = String(row['Inner Print'] || row['inner_print'] || 'No').trim();
         const salesTeam = String(
           row['Sales Team'] || row['sales_team'] || '',
         ).trim();
@@ -212,6 +214,7 @@ export class OrdersService {
           piece_count: pieceCount,
           status: orderStatus,
           current_stage: initialStageName,
+          inner_print: innerPrint || 'No',
           estimated_delivery: bcd ? new Date(bcd) : null,
           fcd: fcdValue ? new Date(fcdValue) : null,
           sales_team: salesTeam || null,
@@ -507,6 +510,7 @@ export class OrdersService {
     if (updateOrderDto.filing_team_name)
       order.filing_team_name = updateOrderDto.filing_team_name;
     if (updateOrderDto.deposit) order.deposit = updateOrderDto.deposit;
+    if (updateOrderDto.inner_print) order.inner_print = updateOrderDto.inner_print;
     if (updateOrderDto.estimated_delivery)
       order.estimated_delivery = new Date(updateOrderDto.estimated_delivery);
     if (updateOrderDto.fcd) order.fcd = new Date(updateOrderDto.fcd);

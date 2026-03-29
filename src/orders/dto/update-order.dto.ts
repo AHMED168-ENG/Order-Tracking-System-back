@@ -51,6 +51,10 @@ export class UpdateOrderDto {
 
   @IsString()
   @IsOptional()
+  inner_print?: string;
+
+  @IsString()
+  @IsOptional()
   invoice_image?: string;
 
   @IsOptional()

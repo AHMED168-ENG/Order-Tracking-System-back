@@ -39,6 +39,9 @@ export class Order {
   @Column({ type: 'date', nullable: true })
   fcd: Date | null;
 
+  @Column({ type: 'varchar', length: 10, default: 'No' })
+  inner_print: string;
+
   @Column({ type: 'varchar', length: 100, nullable: true })
   sales_team: string | null;
 

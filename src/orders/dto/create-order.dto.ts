@@ -30,6 +30,10 @@ export class CreateOrderDto {
 
   @IsString()
   @IsOptional()
+  inner_print?: string;
+
+  @IsString()
+  @IsOptional()
   estimated_delivery?: string; // B.C.D
 
   @IsString()
