@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like, In } from 'typeorm';
+import { Repository, Like, In, DeepPartial } from 'typeorm';
 import * as XLSX from 'xlsx';
 import * as ExcelJS from 'exceljs';
 import { Response } from 'express';
@@ -46,6 +46,9 @@ export class OrdersService {
       { header: 'Total Amount', key: 'totalAmount', width: 15 },
       { header: 'Pieces', key: 'pieces', width: 10 },
       { header: 'Stage', key: 'stage', width: 25 },
+      { header: 'Sales Team', key: 'salesTeam', width: 20 },
+      { header: 'Filing Team', key: 'filingTeam', width: 20 },
+      { header: 'Deposit', key: 'deposit', width: 15 },
     ];
 
     // Add a single empty row for the user to start filling out
@@ -57,6 +60,9 @@ export class OrdersService {
       totalAmount: 0,
       pieces: 1,
       stage: stageNames[0] || 'New Batches',
+      salesTeam: '',
+      filingTeam: '',
+      deposit: '',
     });
 
     // Formatting Header
@@ -143,6 +149,16 @@ export class OrdersService {
         const stageFromExcel = String(
           row['Stage'] || row['stage'] || row['Current Stage'] || '',
         ).trim();
+        const salesTeam = String(
+          row['Sales Team'] || row['sales_team'] || '',
+        ).trim();
+        const filingTeam = String(
+          row['Filing Team'] ||
+            row['filing_team_name'] ||
+            row['filing_team'] ||
+            '',
+        ).trim();
+        const deposit = String(row['Deposit'] || row['deposit'] || '').trim();
 
         if (!orderNumber || !customerName || !phone) {
           throw new Error(
@@ -183,7 +199,7 @@ export class OrdersService {
         else if (initialStageName !== validStageNames[0])
           orderStatus = 'In Progress';
 
-        const order = this.ordersRepository.create({
+        const orderData: DeepPartial<Order> = {
           order_number: orderNumber,
           customer_name: customerName,
           phone,
@@ -192,8 +208,12 @@ export class OrdersService {
           piece_count: pieceCount,
           status: orderStatus,
           current_stage: initialStageName,
-        });
+          sales_team: salesTeam || null,
+          filing_team_name: filingTeam || null,
+          deposit: deposit || null,
+        };
 
+        const order = this.ordersRepository.create(orderData);
         const savedOrder = await this.ordersRepository.save(order);
 
         await this.stagesRepository.save(
@@ -478,11 +498,45 @@ export class OrdersService {
     if (updateOrderDto.phone) order.phone = updateOrderDto.phone;
     if (updateOrderDto.address) order.address = updateOrderDto.address;
     if (updateOrderDto.sales_team) order.sales_team = updateOrderDto.sales_team;
-    if (updateOrderDto.filing_team_name) order.filing_team_name = updateOrderDto.filing_team_name;
+    if (updateOrderDto.filing_team_name)
+      order.filing_team_name = updateOrderDto.filing_team_name;
+    if (updateOrderDto.deposit) order.deposit = updateOrderDto.deposit;
     if (updateOrderDto.estimated_delivery)
       order.estimated_delivery = new Date(updateOrderDto.estimated_delivery);
-    if (updateOrderDto.order_number) order.order_number = updateOrderDto.order_number;
-    if (updateOrderDto.invoice_image) order.invoice_image = updateOrderDto.invoice_image;
+    if (updateOrderDto.order_number)
+      order.order_number = updateOrderDto.order_number;
+    if (updateOrderDto.invoice_image)
+      order.invoice_image = updateOrderDto.invoice_image;
+
+    // Handle Stage and Status transitions
+    const oldStage = order.current_stage;
+    const newStage = updateOrderDto.current_stage;
+    const newStatus = updateOrderDto.status;
+
+    if (newStatus) order.status = newStatus;
+
+    if (newStage && newStage !== oldStage) {
+      order.current_stage = newStage;
+      // Also update status if transitioning to the same stage
+      await this.stagesRepository.save(
+        this.stagesRepository.create({
+          order_id: order.id,
+          stage_name: newStage,
+          status: newStatus || order.status,
+          notes: `Updated via Edit Order form`,
+        }),
+      );
+    } else if (newStatus && newStatus !== order.status) {
+      // If only status changed (in the same stage)
+      await this.stagesRepository.save(
+        this.stagesRepository.create({
+          order_id: order.id,
+          stage_name: order.current_stage,
+          status: newStatus,
+          notes: `Status updated via Edit Order form`,
+        }),
+      );
+    }
 
     return this.ordersRepository.save(order);
   }

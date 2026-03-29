@@ -36,11 +36,15 @@ export class Order {
   @Column({ type: 'date', nullable: true })
   estimated_delivery: Date;
 
-  @Column({ length: 100, nullable: true })
-  sales_team: string;
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  sales_team: string | null;
 
-  @Column({ length: 100, nullable: true })
-  filing_team_name: string;
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  filing_team_name: string | null;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  deposit: string | null;
+  
 
   @Column({ type: 'jsonb', nullable: true })
   price_details: any;

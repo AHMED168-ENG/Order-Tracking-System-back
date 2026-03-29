@@ -43,8 +43,20 @@ export class UpdateOrderDto {
 
   @IsString()
   @IsOptional()
+  deposit?: string;
+
+  @IsString()
+  @IsOptional()
   invoice_image?: string;
 
   @IsOptional()
   price_details?: any;
+
+  @IsString()
+  @IsOptional()
+  current_stage?: string;
+
+  @IsString()
+  @IsOptional()
+  status?: string;
 }

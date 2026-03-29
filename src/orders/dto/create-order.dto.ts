@@ -40,6 +40,10 @@ export class CreateOrderDto {
   @IsOptional()
   filing_team_name?: string;
 
+  @IsString()
+  @IsOptional()
+  deposit?: string;
+
   @IsOptional()
   price_details?: any[];
 
