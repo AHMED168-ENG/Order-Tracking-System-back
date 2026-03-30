@@ -154,7 +154,9 @@ export class OrdersService {
         ).trim();
         const bcd = row['B.C.D'] || row['bcd'] || null;
         const fcdValue = row['F C D'] || row['fcd'] || null;
-        const innerPrint = String(row['Inner Print'] || row['inner_print'] || 'No').trim();
+        const innerPrint = String(
+          row['Inner Print'] || row['inner_print'] || 'No',
+        ).trim();
         const salesTeam = String(
           row['Sales Team'] || row['sales_team'] || '',
         ).trim();
@@ -458,43 +460,35 @@ export class OrdersService {
     order.current_stage = stage_name;
     order.status = orderStatus;
 
-    const savedOrder = await this.ordersRepository.save(order);
-
-    return savedOrder;
-
-    return savedOrder;
+    return await this.ordersRepository.save(order);
   }
 
   async update(id: number, updateOrderDto: UpdateOrderDto, user?: any) {
     const order = await this.ordersRepository.findOne({ where: { id } });
     if (!order) throw new NotFoundException('Order not found');
 
-    // Handle price_details parsing if it's a string
+    // Parse price_details if sent as string (from FormData)
     let priceDetails = updateOrderDto.price_details;
     if (typeof priceDetails === 'string') {
       try {
         priceDetails = JSON.parse(priceDetails);
       } catch (e) {
-        // keep old or set empty
+        /* keep old */
       }
     }
 
-    if (priceDetails) {
+    if (priceDetails && Array.isArray(priceDetails)) {
       order.price_details = priceDetails;
-      // Re-calculate totals if price_details changed
-      if (Array.isArray(priceDetails)) {
-        order.total_amount = priceDetails.reduce(
-          (sum, item) => sum + Number(item.price) * Number(item.quantity),
-          0,
-        );
-        order.piece_count = priceDetails.reduce(
-          (sum, item) => sum + Number(item.quantity),
-          0,
-        );
-      }
+      order.total_amount = priceDetails.reduce(
+        (sum, item) => sum + Number(item.price) * Number(item.quantity),
+        0,
+      );
+      order.piece_count = priceDetails.reduce(
+        (sum, item) => sum + Number(item.quantity),
+        0,
+      );
     }
 
-    // Map other fields
     if (updateOrderDto.customer_name)
       order.customer_name = updateOrderDto.customer_name;
     if (updateOrderDto.phone) order.phone = updateOrderDto.phone;
@@ -503,7 +497,8 @@ export class OrdersService {
     if (updateOrderDto.filing_team_name)
       order.filing_team_name = updateOrderDto.filing_team_name;
     if (updateOrderDto.deposit) order.deposit = updateOrderDto.deposit;
-    if (updateOrderDto.inner_print) order.inner_print = updateOrderDto.inner_print;
+    if (updateOrderDto.inner_print)
+      order.inner_print = updateOrderDto.inner_print;
     if (updateOrderDto.estimated_delivery)
       order.estimated_delivery = new Date(updateOrderDto.estimated_delivery);
     if (updateOrderDto.fcd) order.fcd = new Date(updateOrderDto.fcd);
@@ -511,130 +506,89 @@ export class OrdersService {
       order.order_number = updateOrderDto.order_number;
     if (updateOrderDto.invoice_image)
       order.invoice_image = updateOrderDto.invoice_image;
-    
-    // Handle Stage and Status transitions
+
     const oldStage = order.current_stage;
-    const newStage = updateOrderDto.current_stage;
+    const requestedStage = updateOrderDto.current_stage;
     const newStatus = updateOrderDto.status;
-    
-    // Restore readiness flags
     let readinessChanged = false;
     let readinessNote = '';
 
-    if (updateOrderDto.is_design_completed !== undefined && updateOrderDto.is_design_completed !== order.is_design_completed) {
-      if (updateOrderDto.is_design_completed === true && order.current_stage !== 'Design' && order.current_stage !== 'Cutting' && !order.is_design_completed) {
-        throw new BadRequestException("Design flag can only be marked as READY while the order is in the 'Design' stage.");
-      }
-      order.is_design_completed = updateOrderDto.is_design_completed;
-      readinessChanged = true;
-      readinessNote += `Design marked as ${order.is_design_completed ? 'READY' : 'PENDING'}. `;
-    }
-    if (updateOrderDto.is_cutting_completed !== undefined && updateOrderDto.is_cutting_completed !== order.is_cutting_completed) {
-      if (updateOrderDto.is_cutting_completed === true && order.current_stage !== 'Cutting' && !order.is_cutting_completed) {
-        throw new BadRequestException("Cutting flag can only be marked as READY while the order is in the 'Cutting' stage.");
-      }
-      order.is_cutting_completed = updateOrderDto.is_cutting_completed;
-      readinessChanged = true;
-      readinessNote += `Cutting marked as ${order.is_cutting_completed ? 'READY' : 'PENDING'}. `;
-    }
-
-    // Auto-transition: If both are ready, move to Ready for Embroidery
-    if (order.is_design_completed && order.is_cutting_completed) {
-      const embroideryStage = 'Ready for Embroidery';
-      const currentIdx = ALL_STAGES.indexOf(order.current_stage);
-      const embroideryIdx = ALL_STAGES.indexOf(embroideryStage);
-      const isCurrentlyInProduction = order.current_stage === 'Design' || order.current_stage === 'Cutting';
-      
-      if (embroideryIdx !== -1 && currentIdx < embroideryIdx && isCurrentlyInProduction) {
-        order.current_stage = embroideryStage;
-        readinessNote += `System: Production Traversal Complete. Auto-advanced to "${embroideryStage}". `;
+    // --- Readiness flags (manual toggle, validated against current stage) ---
+    if (updateOrderDto.is_design_completed !== undefined) {
+      const designVal = String(updateOrderDto.is_design_completed) === 'true';
+      if (designVal !== order.is_design_completed) {
+        if (designVal === true && oldStage !== 'Design' && oldStage !== 'Cutting') {
+          throw new BadRequestException(`Design can only be marked READY while in 'Design' or 'Cutting' stage.`);
+        }
+        order.is_design_completed = designVal;
         readinessChanged = true;
+        readinessNote += `Design: ${order.is_design_completed ? 'READY' : 'PENDING'}. `;
       }
     }
 
-    // Validation: 
-    if (newStage && newStage !== oldStage) {
+    if (updateOrderDto.is_cutting_completed !== undefined) {
+      const cuttingVal = String(updateOrderDto.is_cutting_completed) === 'true';
+      if (cuttingVal !== order.is_cutting_completed) {
+        if (cuttingVal === true && oldStage !== 'Cutting' && oldStage !== 'Design') {
+          throw new BadRequestException(`Cutting can only be marked READY while in 'Design' or 'Cutting' stage.`);
+        }
+        order.is_cutting_completed = cuttingVal;
+        readinessChanged = true;
+        readinessNote += `Cutting: ${order.is_cutting_completed ? 'READY' : 'PENDING'}. `;
+      }
+    }
+
+    // --- Stage change validation ---
+    if (requestedStage && requestedStage !== oldStage) {
       const oldIdx = ALL_STAGES.indexOf(oldStage);
-      const stageIndex = ALL_STAGES.indexOf(newStage);
-      const readyForEmbroideryIndex = ALL_STAGES.indexOf('Ready for Embroidery');
-      
-      // 1. No Backtracking
-      if (stageIndex < oldIdx && oldIdx !== -1) {
+      const newIdx = ALL_STAGES.indexOf(requestedStage);
+      const embroideryIdx = ALL_STAGES.indexOf('Ready for Embroidery');
+
+      if (oldIdx !== -1 && newIdx !== -1 && newIdx < oldIdx)
         throw new BadRequestException(
-          `Cannot move order back to "${newStage}". Progress must be forward only.`,
+          `Cannot move order back to "${requestedStage}". Progress is forward only.`,
         );
-      }
-      
-      // 2. Production Lock (already implemented)
-      if (stageIndex >= readyForEmbroideryIndex && readyForEmbroideryIndex !== -1) {
-        // Enforce that you can only move TO Embroidery or beyond if you were ALREADY ready BEFORE this update
-        // OR if you are in the 'Cutting' stage and just finished.
-        if (!order.is_design_completed || !order.is_cutting_completed) {
-          throw new BadRequestException(
-            `Cannot move to "${newStage}" until both Design and Cutting are marked as READY.`,
-          );
-        }
-        
-        // Prevent direct jump from non-production stages to Embroidery
-        if (oldIdx < ALL_STAGES.indexOf('Design')) {
-           throw new BadRequestException(
-             "Cannot jump directly to production results. Order must first pass through 'Design' and 'Cutting' stages."
-           );
-        }
-      }
+
+      if (newIdx >= embroideryIdx && embroideryIdx !== -1)
+        throw new BadRequestException(
+          `"${requestedStage}" is reached automatically. Complete Design and Cutting first.`,
+        );
     }
 
     if (newStatus) order.status = newStatus;
 
-    if (newStage && newStage !== oldStage) {
-      order.current_stage = newStage;
-      
-      // Auto-set flags based on stage selection
-      if (newStage === 'Design') {
+    // --- History entry: Manual stage change ---
+    if (requestedStage && requestedStage !== oldStage) {
+      // Auto-set the completion flag when the order enters the stage
+      if (requestedStage === 'Design') {
         order.is_design_completed = true;
-        readinessChanged = true;
-        readinessNote += "Design flag auto-set to READY. ";
       }
-      if (newStage === 'Cutting') {
+      if (requestedStage === 'Cutting') {
         order.is_cutting_completed = true;
-        readinessChanged = true;
-        readinessNote += "Cutting flag auto-set to READY. ";
       }
 
-      // Also update status if transitioning to the same stage
+      order.current_stage = requestedStage;
       await this.stagesRepository.save(
         this.stagesRepository.create({
           order_id: order.id,
-          stage_name: newStage,
+          stage_name: requestedStage,
           status: newStatus || order.status,
           employee_id: user?.id,
-          notes: updateOrderDto.notes || `Updated via Edit Order form`,
-        }),
-      );
-    } else if (newStatus && newStatus !== order.status) {
-      // If only status changed (in the same stage)
-      await this.stagesRepository.save(
-        this.stagesRepository.create({
-          order_id: order.id,
-          stage_name: order.current_stage,
-          status: newStatus,
-          employee_id: user?.id,
-          notes: updateOrderDto.notes || `Status updated via Edit Order form`,
+          notes: updateOrderDto.notes || `Moved to ${requestedStage}`,
         }),
       );
     } else if (readinessChanged) {
-      // If only readiness flags changed
       await this.stagesRepository.save(
         this.stagesRepository.create({
           order_id: order.id,
           stage_name: order.current_stage,
           status: order.status,
           employee_id: user?.id,
-          notes: updateOrderDto.notes || readinessNote.trim() || `Readiness status updated`,
+          notes:
+            updateOrderDto.notes || readinessNote.trim() || 'Readiness updated',
         }),
       );
     } else if (updateOrderDto.notes) {
-      // If ONLY notes were added to the current stage
       await this.stagesRepository.save(
         this.stagesRepository.create({
           order_id: order.id,
@@ -646,7 +600,27 @@ export class OrdersService {
       );
     }
 
-    return this.ordersRepository.save(order);
+    // --- Auto-transition to Embroidery ---
+    // Fires as soon as both Design and Cutting are marked READY (either via stage change or manual button).
+    if (
+      order.is_design_completed &&
+      order.is_cutting_completed &&
+      (order.current_stage === 'Design' || order.current_stage === 'Cutting')
+    ) {
+      const embroideryStage = 'Ready for Embroidery';
+      order.current_stage   = embroideryStage;
+      await this.stagesRepository.save(
+        this.stagesRepository.create({
+          order_id:    order.id,
+          stage_name:  embroideryStage,
+          status:      order.status,
+          employee_id: user?.id,
+          notes:       'System: Auto-advanced — Design & Cutting both READY.',
+        }),
+      );
+    }
+
+    return await this.ordersRepository.save(order);
   }
 
   async saveOrder(order: Order) {
