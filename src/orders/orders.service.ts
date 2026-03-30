@@ -522,11 +522,17 @@ export class OrdersService {
     let readinessNote = '';
 
     if (updateOrderDto.is_design_completed !== undefined && updateOrderDto.is_design_completed !== order.is_design_completed) {
+      if (updateOrderDto.is_design_completed === true && order.current_stage !== 'Design' && order.current_stage !== 'Cutting' && !order.is_design_completed) {
+        throw new BadRequestException("Design flag can only be marked as READY while the order is in the 'Design' stage.");
+      }
       order.is_design_completed = updateOrderDto.is_design_completed;
       readinessChanged = true;
       readinessNote += `Design marked as ${order.is_design_completed ? 'READY' : 'PENDING'}. `;
     }
     if (updateOrderDto.is_cutting_completed !== undefined && updateOrderDto.is_cutting_completed !== order.is_cutting_completed) {
+      if (updateOrderDto.is_cutting_completed === true && order.current_stage !== 'Cutting' && !order.is_cutting_completed) {
+        throw new BadRequestException("Cutting flag can only be marked as READY while the order is in the 'Cutting' stage.");
+      }
       order.is_cutting_completed = updateOrderDto.is_cutting_completed;
       readinessChanged = true;
       readinessNote += `Cutting marked as ${order.is_cutting_completed ? 'READY' : 'PENDING'}. `;
@@ -561,10 +567,19 @@ export class OrdersService {
       
       // 2. Production Lock (already implemented)
       if (stageIndex >= readyForEmbroideryIndex && readyForEmbroideryIndex !== -1) {
+        // Enforce that you can only move TO Embroidery or beyond if you were ALREADY ready BEFORE this update
+        // OR if you are in the 'Cutting' stage and just finished.
         if (!order.is_design_completed || !order.is_cutting_completed) {
           throw new BadRequestException(
             `Cannot move to "${newStage}" until both Design and Cutting are marked as READY.`,
           );
+        }
+        
+        // Prevent direct jump from non-production stages to Embroidery
+        if (oldIdx < ALL_STAGES.indexOf('Design')) {
+           throw new BadRequestException(
+             "Cannot jump directly to production results. Order must first pass through 'Design' and 'Cutting' stages."
+           );
         }
       }
     }
@@ -573,6 +588,19 @@ export class OrdersService {
 
     if (newStage && newStage !== oldStage) {
       order.current_stage = newStage;
+      
+      // Auto-set flags based on stage selection
+      if (newStage === 'Design') {
+        order.is_design_completed = true;
+        readinessChanged = true;
+        readinessNote += "Design flag auto-set to READY. ";
+      }
+      if (newStage === 'Cutting') {
+        order.is_cutting_completed = true;
+        readinessChanged = true;
+        readinessNote += "Cutting flag auto-set to READY. ";
+      }
+
       // Also update status if transitioning to the same stage
       await this.stagesRepository.save(
         this.stagesRepository.create({
