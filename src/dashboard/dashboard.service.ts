@@ -37,10 +37,9 @@ export class DashboardService {
     // Pending
     const pending = await this.ordersRepository.count({ where: { status: 'Pending' } });
 
-    // Active stages aggregation
+    // All stages aggregation (including Completed/Shipped)
     const activeOrders = await this.ordersRepository
       .createQueryBuilder('order')
-      .where('order.status != :status', { status: 'Completed' })
       .select('current_stage')
       .addSelect('COUNT(*)', 'count')
       .addSelect('SUM(piece_count)', 'total_pieces')
