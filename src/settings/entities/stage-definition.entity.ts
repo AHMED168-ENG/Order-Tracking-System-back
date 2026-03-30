@@ -17,9 +17,6 @@ export class StageDefinition {
   @Column({ default: true })
   is_active: boolean;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
-  price_per_piece: number;
-
   @CreateDateColumn()
   created_at: Date;
 
