@@ -46,38 +46,46 @@ export class OrdersService {
       { header: 'Total Amount', key: 'totalAmount', width: 15 },
       { header: 'Pieces', key: 'pieces', width: 10 },
       { header: 'Stage', key: 'stage', width: 25 },
-      { header: 'B.C.D', key: 'bcd', width: 15 },
-      { header: 'F C D', key: 'fcd', width: 15 },
-      { header: 'Inner Print', key: 'innerPrint', width: 15 },
+      { header: 'B.C.D (YYYY-MM-DD)', key: 'bcd', width: 20 },
+      { header: 'F C D (YYYY-MM-DD)', key: 'fcd', width: 20 },
+      { header: 'Inner Print (Yes/No)', key: 'innerPrint', width: 20 },
       { header: 'Sales Team', key: 'salesTeam', width: 20 },
       { header: 'Filing Team', key: 'filingTeam', width: 20 },
-      { header: 'Deposit', key: 'deposit', width: 15 },
+      { header: 'Deposit (Number/Full)', key: 'deposit', width: 20 },
     ];
+
+    // Add Instructions row
+    const instructions = sheet.addRow(['Note: Please fill all mandatory fields (Order Number, Name, Phone). Dates must be YYYY-MM-DD.']);
+    instructions.font = { italic: true, color: { argb: 'FFFF0000' } };
+    sheet.mergeCells(instructions.number, 1, instructions.number, 13);
 
     // Add a single empty row for the user to start filling out
     sheet.addRow({
-      orderNumber: '',
-      customerName: '',
-      phone: '',
-      address: '',
-      totalAmount: 0,
+      orderNumber: 'sen001',
+      customerName: 'Sample Customer',
+      phone: '01000000000',
+      address: 'Cairo, Egypt',
+      totalAmount: 1000,
       pieces: 1,
       stage: stageNames[0] || 'New Batches',
-      salesTeam: '',
-      filingTeam: '',
-      deposit: '',
+      bcd: new Date().toISOString().split('T')[0],
+      fcd: new Date().toISOString().split('T')[0],
+      innerPrint: 'No',
+      salesTeam: 'Team A',
+      filingTeam: 'Planning Team',
+      deposit: 'Full',
     });
 
     // Formatting Header
     const headerRow = sheet.getRow(1);
     headerRow.font = { bold: true };
-    headerRow.eachCell((cell: ExcelJS.Cell) => {
-      cell.fill = {
+    headerRow.eachCell((cellByColumn: ExcelJS.Cell) => {
+      cellByColumn.fill = {
         type: 'pattern',
         pattern: 'solid',
         fgColor: { argb: 'FFEFEFEF' },
       };
-      cell.border = {
+      cellByColumn.border = {
         top: { style: 'thin' },
         left: { style: 'thin' },
         bottom: { style: 'thin' },
@@ -89,7 +97,7 @@ export class OrdersService {
     const stageColChar = 'G';
     const dropDownList = `"${stageNames.join(',')}"`;
 
-    for (let i = 2; i <= 1000; i++) {
+    for (let i = 3; i <= 1000; i++) {
       sheet.getCell(`${stageColChar}${i}`).dataValidation = {
         type: 'list',
         allowBlank: true,
@@ -116,7 +124,14 @@ export class OrdersService {
     const workbook = XLSX.read(file.buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
-    const data: any[] = XLSX.utils.sheet_to_json(sheet);
+    // sheet_to_json doesn't skip instruction rows automatically, so we skip manually if needed
+    const rawData: any[] = XLSX.utils.sheet_to_json(sheet);
+    
+    // Filter out potential instruction rows (we added one in line 2)
+    const data = rawData.filter(row => {
+      const firstVal = Object.values(row)[0];
+      return firstVal && !String(firstVal).includes('Note:');
+    });
 
     const results = {
       total: data.length,
@@ -126,52 +141,43 @@ export class OrdersService {
       successfulOrders: [] as any[],
     };
 
+    // Pre-fetch all active stages once
+    const activeStages = await this.stageDefinitionsRepository.find({
+      where: { is_active: true },
+      order: { order_index: 'ASC' },
+    });
+    const validStageNames = activeStages.map((s) => s.name);
+    const embroideryIdx = ALL_STAGES.indexOf('Ready for Embroidery');
+
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
-      const rowNum = i + 2; // +1 for zero-index, +1 for header row
+      const rowNum = i + 2; // Approximate row number
 
       try {
-        const orderNumber = String(
-          row['Order Number'] || row['order_number'] || '',
-        ).trim();
-        const customerName = String(
-          row['Customer Name'] || row['customer_name'] || '',
-        ).trim();
-        const phone = String(row['Phone'] || row['phone'] || '').trim();
-        const address = String(row['Address'] || row['address'] || '').trim();
-        const totalAmount = Number(
-          row['Total Amount'] || row['total_amount'] || 0,
-        );
-        const pieceCount = Number(
-          row['Pieces'] ||
-            row['pieces'] ||
-            row['Piece Count'] ||
-            row['piece_count'] ||
-            0,
-        );
-        const stageFromExcel = String(
-          row['Stage'] || row['stage'] || row['Current Stage'] || '',
-        ).trim();
-        const bcd = row['B.C.D'] || row['bcd'] || null;
-        const fcdValue = row['F C D'] || row['fcd'] || null;
-        const innerPrint = String(
-          row['Inner Print'] || row['inner_print'] || 'No',
-        ).trim();
-        const salesTeam = String(
-          row['Sales Team'] || row['sales_team'] || '',
-        ).trim();
-        const filingTeam = String(
-          row['Filing Team'] ||
-            row['filing_team_name'] ||
-            row['filing_team'] ||
-            '',
-        ).trim();
-        const deposit = String(row['Deposit'] || row['deposit'] || '').trim();
+        // Robust mapping helper
+        const getVal = (keys: string[]) => {
+          for (const k of keys) {
+            if (row[k] !== undefined) return row[k];
+          }
+          return null;
+        };
+
+        const orderNumber = String(getVal(['Order Number', 'order_number', 'orderNumber']) || '').trim();
+        const customerName = String(getVal(['Customer Name', 'customer_name', 'customerName']) || '').trim();
+        const phone = String(getVal(['Phone', 'phone']) || '').trim();
+        const address = String(getVal(['Address', 'address']) || '').trim();
+        const totalAmount = Number(getVal(['Total Amount', 'total_amount', 'totalAmount']) || 0);
+        const pieceCount = Number(getVal(['Pieces', 'pieces', 'Piece Count', 'piece_count']) || 0);
+        const stageFromExcel = String(getVal(['Stage', 'stage', 'Current Stage']) || '').trim();
+        const bcd = getVal(['B.C.D', 'bcd', 'B.C.D (YYYY-MM-DD)']);
+        const fcdValue = getVal(['F C D', 'fcd', 'F C D (YYYY-MM-DD)']);
+        const innerPrint = String(getVal(['Inner Print', 'inner_print', 'Inner Print (Yes/No)']) || 'No').trim();
+        const salesTeam = String(getVal(['Sales Team', 'sales_team']) || '').trim();
+        const filingTeam = String(getVal(['Filing Team', 'filing_team', 'Filing Team Name']) || '').trim();
+        const deposit = String(getVal(['Deposit', 'deposit', 'Deposit (Number/Full)']) || '').trim();
 
         if (!orderNumber || !customerName || !phone) {
-          throw new Error(
-            'Missing required fields (Order Number, Customer Name, or Phone)',
-          );
+          throw new Error('Missing required fields (Order Number, Customer Name, or Phone)');
         }
 
         const existing = await this.ordersRepository.findOne({
@@ -181,31 +187,35 @@ export class OrdersService {
           throw new Error(`Order number ${orderNumber} already exists`);
         }
 
-        // Try to use the stage from Excel, validting it exists in active stages
-        let initialStageName = 'New Batches';
-        const activeStages = await this.stageDefinitionsRepository.find({
-          where: { is_active: true },
-        });
-        const validStageNames = activeStages.map((s) => s.name);
+        // --- Stage & Production Flags Logic ---
+        let initialStageName = activeStages[0]?.name || 'New Batches';
+        let isDesignCompleted = false;
+        let isCuttingCompleted = false;
 
         if (stageFromExcel && validStageNames.includes(stageFromExcel)) {
           initialStageName = stageFromExcel;
-        } else {
-          // Get first stage dynamically (or fallback to 'New Batches')
-          const firstStage = activeStages.sort(
-            (a, b) => a.order_index - b.order_index,
-          )[0];
-          initialStageName = firstStage?.name || 'New Batches';
+        }
+
+        const stageIdxInSeq = ALL_STAGES.indexOf(initialStageName);
+
+        // Logic: Any stage from "Ready for Embroidery" (embroideryIdx) onwards means production is DONE.
+        if (embroideryIdx !== -1 && stageIdxInSeq >= embroideryIdx) {
+          isDesignCompleted = true;
+          isCuttingCompleted = true;
+        } else if (initialStageName === 'Design') {
+          // If manually starting at Design, let's assume it's moving forward
+          // However, user usually wants it in 'In Progress' with manual flags.
+          // Rule from CreateOrderDto usually keeps these false by default.
+        } else if (initialStageName === 'Cutting') {
+            // Already past design if it's in cutting? Usually yes.
+            isDesignCompleted = true;
         }
 
         let orderStatus = 'Pending';
-        // Check if the initial stage is the last stage
-        const lastStage = activeStages.sort(
-          (a, b) => b.order_index - a.order_index,
-        )[0];
+        const lastStage = activeStages[activeStages.length - 1];
+        
         if (initialStageName === lastStage?.name) orderStatus = 'Completed';
-        else if (initialStageName !== validStageNames[0])
-          orderStatus = 'In Progress';
+        else if (initialStageName !== validStageNames[0]) orderStatus = 'In Progress';
 
         const orderData: DeepPartial<Order> = {
           order_number: orderNumber,
@@ -216,7 +226,9 @@ export class OrdersService {
           piece_count: pieceCount,
           status: orderStatus,
           current_stage: initialStageName,
-          inner_print: innerPrint || 'No',
+          is_design_completed: isDesignCompleted,
+          is_cutting_completed: isCuttingCompleted,
+          inner_print: innerPrint,
           estimated_delivery: bcd ? new Date(bcd) : null,
           fcd: fcdValue ? new Date(fcdValue) : null,
           sales_team: salesTeam || null,
@@ -227,12 +239,14 @@ export class OrdersService {
         const order = this.ordersRepository.create(orderData);
         const savedOrder = await this.ordersRepository.save(order);
 
+        // Create initial history entry
         await this.stagesRepository.save(
           this.stagesRepository.create({
             order_id: savedOrder.id,
             stage_name: initialStageName,
             status: orderStatus,
-            notes: 'Created via bulk upload',
+            employee_id: user?.id,
+            notes: 'Batch: Created via bulk upload',
           }),
         );
 
