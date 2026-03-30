@@ -555,7 +555,9 @@ export class OrdersService {
         }
       }
 
-      if (newIdx >= embroideryIdx && embroideryIdx !== -1)
+      // Only block manual jumps to Embroidery/later IF the order is still in earlier production stages.
+      // Once it has auto-advanced (oldIdx >= embroideryIdx), manual advancement is allowed.
+      if (newIdx >= embroideryIdx && embroideryIdx !== -1 && oldIdx < embroideryIdx)
         throw new BadRequestException(
           `"${requestedStage}" is reached automatically. Complete Design and Cutting first.`,
         );
@@ -617,14 +619,17 @@ export class OrdersService {
       (order.current_stage === 'Design' || order.current_stage === 'Cutting')
     ) {
       const embroideryStage = 'Ready for Embroidery';
-      order.current_stage   = embroideryStage;
+      const oldStageBeforeAuto = order.current_stage;
+      order.current_stage = embroideryStage;
+
+      // Save a history entry for the auto-transition
       await this.stagesRepository.save(
         this.stagesRepository.create({
-          order_id:    order.id,
-          stage_name:  embroideryStage,
-          status:      order.status,
+          order_id: order.id,
+          stage_name: embroideryStage,
+          status: order.status,
           employee_id: user?.id,
-          notes:       'System: Auto-advanced — Design & Cutting both READY.',
+          notes: 'System: Auto-advanced — Both Design & Cutting are Completed.',
         }),
       );
     }
