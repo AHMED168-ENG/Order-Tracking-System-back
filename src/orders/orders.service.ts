@@ -544,10 +544,16 @@ export class OrdersService {
       const newIdx = ALL_STAGES.indexOf(requestedStage);
       const embroideryIdx = ALL_STAGES.indexOf('Ready for Embroidery');
 
-      if (oldIdx !== -1 && newIdx !== -1 && newIdx < oldIdx)
-        throw new BadRequestException(
-          `Cannot move order back to "${requestedStage}". Progress is forward only.`,
-        );
+      if (oldIdx !== -1 && newIdx !== -1 && newIdx < oldIdx) {
+        // Exception: Allow moving back and forth between 'Design' and 'Cutting'
+        const isSwappingDesignCutting = (oldStage === 'Design' && requestedStage === 'Cutting') || (oldStage === 'Cutting' && requestedStage === 'Design');
+        
+        if (!isSwappingDesignCutting) {
+          throw new BadRequestException(
+            `Cannot move order back to "${requestedStage}". Progress is forward only.`,
+          );
+        }
+      }
 
       if (newIdx >= embroideryIdx && embroideryIdx !== -1)
         throw new BadRequestException(
@@ -575,6 +581,7 @@ export class OrdersService {
           status: newStatus || order.status,
           employee_id: user?.id,
           notes: updateOrderDto.notes || `Moved to ${requestedStage}`,
+          attachments: updateOrderDto.stage_image ? [updateOrderDto.stage_image] : undefined,
         }),
       );
     } else if (readinessChanged) {
@@ -586,16 +593,18 @@ export class OrdersService {
           employee_id: user?.id,
           notes:
             updateOrderDto.notes || readinessNote.trim() || 'Readiness updated',
+          attachments: updateOrderDto.stage_image ? [updateOrderDto.stage_image] : undefined,
         }),
       );
-    } else if (updateOrderDto.notes) {
+    } else if (updateOrderDto.notes || updateOrderDto.stage_image) {
       await this.stagesRepository.save(
         this.stagesRepository.create({
           order_id: order.id,
           stage_name: order.current_stage,
           status: order.status,
           employee_id: user?.id,
-          notes: updateOrderDto.notes,
+          notes: updateOrderDto.notes || 'Added transition image',
+          attachments: updateOrderDto.stage_image ? [updateOrderDto.stage_image] : undefined,
         }),
       );
     }

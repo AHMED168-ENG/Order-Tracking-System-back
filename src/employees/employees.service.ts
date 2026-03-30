@@ -30,7 +30,7 @@ export class EmployeesService implements OnModuleInit {
 
   async findAll(page: number = 1, limit: number = 10) {
     const [items, total] = await this.employeesRepository.findAndCount({
-      select: ['id', 'name', 'email', 'phone', 'role', 'department'],
+      select: ['id', 'name', 'email', 'phone', 'role', 'department', 'avatar'],
       skip: (page - 1) * limit,
       take: limit,
       order: { id: 'DESC' },
@@ -77,7 +77,7 @@ export class EmployeesService implements OnModuleInit {
   async findOne(id: number): Promise<Employee | null> {
     return this.employeesRepository.findOne({ 
       where: { id },
-      select: ['id', 'name', 'email', 'phone', 'role', 'department']
+      select: ['id', 'name', 'email', 'phone', 'role', 'department', 'avatar']
     });
   }
 

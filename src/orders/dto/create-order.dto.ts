@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString, IsNumber, IsNumberString, MinLength, IsInt } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsNumber, IsNumberString, MinLength, IsInt, Matches } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateOrderDto {
@@ -50,6 +50,7 @@ export class CreateOrderDto {
 
   @IsString()
   @IsOptional()
+  @Matches(/^(フル|full|\d+(\.\d+)?)$/i, { message: 'Deposit must be a number or the word "Full"' })
   deposit?: string;
 
   @IsOptional()

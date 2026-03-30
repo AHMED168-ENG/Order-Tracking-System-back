@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsNumber, IsNumberString, MinLength } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsNumberString, MinLength, Matches } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class UpdateOrderDto {
@@ -47,6 +47,7 @@ export class UpdateOrderDto {
 
   @IsString()
   @IsOptional()
+  @Matches(/^(フル|full|\d+(\.\d+)?)$/i, { message: 'Deposit must be a number or the word "Full"' })
   deposit?: string;
 
   @IsString()
@@ -56,6 +57,10 @@ export class UpdateOrderDto {
   @IsString()
   @IsOptional()
   invoice_image?: string;
+
+  @IsString()
+  @IsOptional()
+  stage_image?: string;
 
   @IsOptional()
   price_details?: any;

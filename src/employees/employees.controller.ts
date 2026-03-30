@@ -1,8 +1,12 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Query, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Query, Req, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { EmployeesService } from './employees.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { v4 as uuidv4 } from 'uuid';
+import { extname } from 'path';
 
 @Controller('api/employees')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -15,7 +19,19 @@ export class EmployeesController {
   }
 
   @Put('profile')
-  updateProfile(@Req() req: any, @Body() updateData: any) {
+  @UseInterceptors(FileInterceptor('avatar', {
+    storage: diskStorage({
+      destination: './uploads',
+      filename: (req, file, cb) => {
+        const uniqueSuffix = uuidv4();
+        cb(null, `${uniqueSuffix}${extname(file.originalname)}`);
+      },
+    }),
+  }))
+  updateProfile(@Req() req: any, @Body() updateData: any, @UploadedFile() avatar?: Express.Multer.File) {
+    if (avatar) {
+      updateData.avatar = `/uploads/${avatar.filename}`;
+    }
     return this.employeesService.updateProfile(req.user.id, updateData);
   }
 

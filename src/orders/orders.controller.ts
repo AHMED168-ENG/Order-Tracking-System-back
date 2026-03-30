@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, Request, Req, UseInterceptors, UploadedFiles, UploadedFile, ForbiddenException, Res } from '@nestjs/common';
 import { Response } from 'express';
-import { FilesInterceptor, FileInterceptor } from '@nestjs/platform-express';
+import { FilesInterceptor, FileInterceptor, FileFieldsInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import { extname, join } from 'path';
@@ -126,7 +126,10 @@ export class OrdersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin', 'staff', 'accountant')
   @Post(':id/update')
-  @UseInterceptors(FileInterceptor('invoice', {
+  @UseInterceptors(FileFieldsInterceptor([
+    { name: 'invoice', maxCount: 1 },
+    { name: 'stage_image', maxCount: 1 }
+  ], {
     storage: diskStorage({
       destination: './uploads',
       filename: (req, file, cb) => {
@@ -139,10 +142,13 @@ export class OrdersController {
     @Param('id') id: string,
     @Body() updateOrderDto: UpdateOrderDto,
     @Request() req: any,
-    @UploadedFile() invoice?: Express.Multer.File,
+    @UploadedFiles() files?: { invoice?: Express.Multer.File[], stage_image?: Express.Multer.File[] },
   ) {
-    if (invoice) {
-        updateOrderDto.invoice_image = `/uploads/${invoice.filename}`;
+    if (files?.invoice?.[0]) {
+        updateOrderDto.invoice_image = `/uploads/${files.invoice[0].filename}`;
+    }
+    if (files?.stage_image?.[0]) {
+        updateOrderDto.stage_image = `/uploads/${files.stage_image[0].filename}`;
     }
     return this.ordersService.update(+id, updateOrderDto, req.user);
   }

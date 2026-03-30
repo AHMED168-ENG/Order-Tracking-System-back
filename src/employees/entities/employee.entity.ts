@@ -22,4 +22,7 @@ export class Employee {
 
   @Column({ length: 255 })
   password: string;
+
+  @Column({ type: 'text', nullable: true })
+  avatar: string;
 }
