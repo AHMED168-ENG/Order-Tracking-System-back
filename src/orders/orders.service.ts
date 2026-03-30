@@ -43,8 +43,6 @@ export class OrdersService {
       { header: 'Customer Name', key: 'customerName', width: 25 },
       { header: 'Phone', key: 'phone', width: 15 },
       { header: 'Address', key: 'address', width: 30 },
-      { header: 'Total Amount', key: 'totalAmount', width: 15 },
-      { header: 'Pieces', key: 'pieces', width: 10 },
       { header: 'Stage', key: 'stage', width: 25 },
       { header: 'B.C.D (YYYY-MM-DD)', key: 'bcd', width: 20 },
       { header: 'F C D (YYYY-MM-DD)', key: 'fcd', width: 20 },
@@ -55,9 +53,9 @@ export class OrdersService {
     ];
 
     // Add Instructions row
-    const instructions = sheet.addRow(['Note: Please fill all mandatory fields (Order Number, Name, Phone). Dates must be YYYY-MM-DD.']);
+    const instructions = sheet.addRow(['Note: Please fill all mandatory fields (Order Number, Name, Phone). Dates must be YYYY-MM-DD. Price and Items must be added within the system after upload.']);
     instructions.font = { italic: true, color: { argb: 'FFFF0000' } };
-    sheet.mergeCells(instructions.number, 1, instructions.number, 13);
+    sheet.mergeCells(instructions.number, 1, instructions.number, 11);
 
     // Add a single empty row for the user to start filling out
     sheet.addRow({
@@ -65,8 +63,6 @@ export class OrdersService {
       customerName: 'Sample Customer',
       phone: '01000000000',
       address: 'Cairo, Egypt',
-      totalAmount: 1000,
-      pieces: 1,
       stage: stageNames[0] || 'New Batches',
       bcd: new Date().toISOString().split('T')[0],
       fcd: new Date().toISOString().split('T')[0],
@@ -93,8 +89,8 @@ export class OrdersService {
       };
     });
 
-    // Add Data Validation Dropdown to 'Stage' column (G) for the first 1000 rows
-    const stageColChar = 'G';
+    // Add Data Validation Dropdown to 'Stage' column (E) for the first 1000 rows
+    const stageColChar = 'E';
     const dropDownList = `"${stageNames.join(',')}"`;
 
     for (let i = 3; i <= 1000; i++) {
@@ -166,8 +162,6 @@ export class OrdersService {
         const customerName = String(getVal(['Customer Name', 'customer_name', 'customerName']) || '').trim();
         const phone = String(getVal(['Phone', 'phone']) || '').trim();
         const address = String(getVal(['Address', 'address']) || '').trim();
-        const totalAmount = Number(getVal(['Total Amount', 'total_amount', 'totalAmount']) || 0);
-        const pieceCount = Number(getVal(['Pieces', 'pieces', 'Piece Count', 'piece_count']) || 0);
         const stageFromExcel = String(getVal(['Stage', 'stage', 'Current Stage']) || '').trim();
         const bcd = getVal(['B.C.D', 'bcd', 'B.C.D (YYYY-MM-DD)']);
         const fcdValue = getVal(['F C D', 'fcd', 'F C D (YYYY-MM-DD)']);
@@ -222,8 +216,9 @@ export class OrdersService {
           customer_name: customerName,
           phone,
           address,
-          total_amount: totalAmount,
-          piece_count: pieceCount,
+          total_amount: 0,
+          piece_count: 0,
+          price_details: [],
           status: orderStatus,
           current_stage: initialStageName,
           is_design_completed: isDesignCompleted,

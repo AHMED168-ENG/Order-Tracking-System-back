@@ -49,8 +49,35 @@ async function bootstrap() {
     order.customer_name = arabNames[Math.floor(Math.random() * arabNames.length)] + ' ' + (i % 2 === 0 ? 'Group' : 'Store');
     order.phone = `01${Math.floor(100000000 + Math.random() * 900000000)}`;
     order.address = `${Math.floor(Math.random() * 100)} Street, ${cities[Math.floor(Math.random() * cities.length)]}, Egypt`;
-    order.total_amount = Math.floor(1500 + Math.random() * 8500);
-    order.piece_count = Math.floor(10 + Math.random() * 90);
+    // NEW: Generate random price_details
+    const itemTemplates = [
+      { name: 'Jacket', price: 150 },
+      { name: 'Pants', price: 100 },
+      { name: 'T shirt', price: 50 },
+      { name: 'Hoodie', price: 120 }
+    ];
+    
+    const numItems = Math.floor(Math.random() * 3) + 1; // 1-3 items
+    const selectedItems = [];
+    let calcTotalAmount = 0;
+    let calcPieceCount = 0;
+    
+    for (let j = 0; j < numItems; j++) {
+      const template = itemTemplates[Math.floor(Math.random() * itemTemplates.length)];
+      const qty = Math.floor(Math.random() * 20) + 5; // 5-25 pieces
+      selectedItems.push({
+        item_id: template.name.toLowerCase().replace(' ', '_'),
+        item_name: template.name,
+        price: template.price,
+        quantity: qty
+      });
+      calcTotalAmount += template.price * qty;
+      calcPieceCount += qty;
+    }
+
+    order.price_details = selectedItems;
+    order.total_amount = calcTotalAmount;
+    order.piece_count = calcPieceCount;
     order.status = 'Active';
     order.current_stage = firstStage;
     
@@ -60,7 +87,7 @@ async function bootstrap() {
     order.sales_team = salesEmp.name;
     order.filing_team_name = filingEmp.name;
     
-    order.deposit = Math.random() > 0.5 ? 'Paid' : 'Partial';
+    order.deposit = Math.random() > 0.5 ? String(Math.floor(calcTotalAmount / 2)) : 'Full';
     order.inner_print = Math.random() > 0.7 ? 'Yes' : 'No';
     order.estimated_delivery = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days from now
 

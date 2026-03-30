@@ -54,14 +54,23 @@ export class AccountantDashboardService {
           phone: s.employee ? s.employee.phone : '',
           stages_completed: 0,
           pieces_processed: 0,
+          value_processed: 0,
           orders: new Set(),
         };
       }
       employeeMap[empId].stages_completed += 1;
+      
+      // Fix: Only count pieces and value ONCE per order for each employee
+      if (!employeeMap[empId].orders.has(s.order_id)) {
+        employeeMap[empId].pieces_processed += s.order
+          ? Number(s.order.piece_count)
+          : 0;
+        employeeMap[empId].value_processed += s.order
+          ? Number(s.order.total_amount)
+          : 0;
+      }
+      
       employeeMap[empId].orders.add(s.order_id);
-      employeeMap[empId].pieces_processed += s.order
-        ? Number(s.order.piece_count)
-        : 0;
     });
 
     const results = Object.values(employeeMap).map((emp: any) => ({
@@ -72,6 +81,7 @@ export class AccountantDashboardService {
       stages_completed: emp.stages_completed,
       unique_orders_touched: emp.orders.size,
       pieces_processed: emp.pieces_processed,
+      value_processed: emp.value_processed,
     })).sort((a: any, b: any) => b.pieces_processed - a.pieces_processed);
 
     return results;
@@ -107,12 +117,14 @@ export class AccountantDashboardService {
 
     const totalStages = prod.reduce((acc, p) => acc + p.stages_completed, 0);
     const totalPieces = prod.reduce((acc, p) => acc + p.pieces_processed, 0);
+    const totalValue = prod.reduce((acc, p) => acc + p.value_processed, 0);
     const activeStaff = prod.length;
     const topPerformer = prod.length > 0 ? prod[0] : null;
 
     return {
       total_stages: totalStages,
       total_pieces: totalPieces,
+      total_value: totalValue,
       active_staff: activeStaff,
       top_performer: topPerformer ? topPerformer.name : 'N/A',
     };
@@ -139,6 +151,8 @@ export class AccountantDashboardService {
           order_number: stage.order.order_number,
           customer_name: stage.order.customer_name,
           pieces: stage.order.piece_count || 0,
+          total_price: stage.order.total_amount || 0,
+          price_details: stage.order.price_details || [],
           stage_actioned: stage.stage_name,
           action_date: stage.updated_at
         });

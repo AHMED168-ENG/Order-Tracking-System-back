@@ -69,12 +69,23 @@ async function bootstrap() {
       const existing = await orderRepo.findOne({ where: { order_number: orderNumber } });
       if (existing) continue;
 
+      const qty = 5 + (i % 10);
+      const price = 100;
+      const total = qty * price;
+
       const order = orderRepo.create({
         order_number: orderNumber,
         customer_name: `Test Customer ${i}`,
         phone: `010000000${i.toString().padStart(2, '0')}`,
         address: `Test Address ${i}`,
-        total_amount: 1000 + i * 100,
+        price_details: [{
+          item_id: 'jacket',
+          item_name: 'Jacket',
+          price: price,
+          quantity: qty
+        }],
+        total_amount: total,
+        piece_count: qty,
         status: 'Pending',
         current_stage: 'New Batches',
       });
@@ -123,6 +134,54 @@ async function bootstrap() {
       await stageRepo.save(stagesWithoutEmployee);
     }
   }
+
+  // 7. NEW: Backfill historical Orders with price_details
+  const ordersToSync = await orderRepo.find();
+  let syncCount = 0;
+  for (const order of ordersToSync) {
+    let needsSync = false;
+
+    // If price_details is missing or not an array, initialize it
+    if (!order.price_details || !Array.isArray(order.price_details)) {
+      order.price_details = [
+        {
+          item_id: 'general_item',
+          item_name: 'General Item',
+          price: Number(order.total_amount) || 0,
+          quantity: Number(order.piece_count) || 0,
+        },
+      ];
+      needsSync = true;
+    }
+
+    // Ensure total_amount and piece_count match the array
+    const calcTotal = order.price_details.reduce(
+      (sum: number, it: any) => sum + Number(it.price) * Number(it.quantity),
+      0,
+    );
+    const calcPieces = order.price_details.reduce(
+      (sum: number, it: any) => sum + Number(it.quantity),
+      0,
+    );
+
+    if (
+      Number(order.total_amount) !== calcTotal ||
+      Number(order.piece_count) !== calcPieces
+    ) {
+      order.total_amount = calcTotal;
+      order.piece_count = calcPieces;
+      needsSync = true;
+    }
+
+    if (needsSync) {
+      await orderRepo.save(order);
+      syncCount++;
+    }
+  }
+  if (syncCount > 0)
+    console.log(
+      `Synchronized ${syncCount} orders with new pricing structure. (Pieces & Totals fixed)`,
+    );
 
   console.log('Comprehensive database seeding complete!');
   await app.close();
