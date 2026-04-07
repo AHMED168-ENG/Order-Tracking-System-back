@@ -42,14 +42,20 @@ import { SeedModule } from './seed/seed.module';
         entities: [Employee, Order, OrderStage, AppSetting, StageDefinition],
         autoLoadEntities: true, // Automatically loads all entities registered in the project
         synchronize: configService.get<string>('NODE_ENV') !== 'production', // Disable synchronize in production for data safety
-        
+
         /**
          * Connection pooling is critical for production performance.
-         * It reuses existing database connections, reducing the latency of opening 
+         * It reuses existing database connections, reducing the latency of opening
          * new ones and preventing "too many connections" errors under high load.
          */
         extra: {
           max: 5, // Maximum number of concurrent connections in the pool
+          // DigitalOcean Managed PostgreSQL requires SSL. rejectUnauthorized: false
+          // accepts DO's certificate without needing to provide a CA file.
+          ssl:
+            configService.get<string>('NODE_ENV') === 'production'
+              ? { rejectUnauthorized: false }
+              : false,
         },
       }),
       inject: [ConfigService],
