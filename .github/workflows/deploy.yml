@@ -24,4 +24,5 @@ jobs:
             git pull origin master
             npm install
             npm run build
-            pm2 restart back
+            pm2 delete back || true
+            pm2 start dist/main.js --name back
