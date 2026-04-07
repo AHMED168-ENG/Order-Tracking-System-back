@@ -40,7 +40,17 @@ import { SeedModule } from './seed/seed.module';
         password: configService.get<string>('DB_PASSWORD', 'postgres'),
         database: configService.get<string>('DB_NAME', 'garment_tracking'),
         entities: [Employee, Order, OrderStage, AppSetting, StageDefinition],
-        synchronize: true, // Auto-create tables in dev
+        autoLoadEntities: true, // Automatically loads all entities registered in the project
+        synchronize: configService.get<string>('NODE_ENV') !== 'production', // Disable synchronize in production for data safety
+        
+        /**
+         * Connection pooling is critical for production performance.
+         * It reuses existing database connections, reducing the latency of opening 
+         * new ones and preventing "too many connections" errors under high load.
+         */
+        extra: {
+          max: 5, // Maximum number of concurrent connections in the pool
+        },
       }),
       inject: [ConfigService],
     }),
