@@ -16,6 +16,7 @@ import { SettingsModule } from './settings/settings.module';
 import { StagesModule } from './settings/stages.module';
 import { AppSetting } from './settings/entities/app-setting.entity';
 import { StageDefinition } from './settings/entities/stage-definition.entity';
+import { SeedModule } from './seed/seed.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { StageDefinition } from './settings/entities/stage-definition.entity';
     EmployeesModule,
     SettingsModule,
     StagesModule,
+    SeedModule,
   ],
   controllers: [AppController],
   providers: [AppService],
