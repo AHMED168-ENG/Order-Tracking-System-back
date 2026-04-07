@@ -18,11 +18,10 @@ jobs:
         with:
           node-version: '22.x'
           cache: 'npm'
-          cache-dependency-path: server/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies and Build
         run: |
-          cd server
           npm install
           npm run build
 
@@ -32,9 +31,8 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: 'server/dist,server/package.json,server/package-lock.json'
-          target: '/var/www/senior-jacket/backend'
-          strip_components: 1
+          source: "dist,package.json,package-lock.json"
+          target: "/var/www/senior-jacket/backend"
 
       - name: SSH into server and Restart PM2
         uses: appleboy/ssh-action@master
