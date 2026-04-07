@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, OnModuleInit } from '@nestjs/common';
+import { Injectable, ConflictException, OnModuleInit, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Employee } from './entities/employee.entity';
@@ -7,24 +7,33 @@ import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class EmployeesService implements OnModuleInit {
+  private readonly logger = new Logger(EmployeesService.name);
+
   constructor(
     @InjectRepository(Employee)
     private employeesRepository: Repository<Employee>,
   ) {}
 
   async onModuleInit() {
-    const adminExists = await this.employeesRepository.findOne({ where: { role: 'admin' } });
-    if (!adminExists) {
-      console.log('Seeding initial accounts...');
-      
-      for (const account of CORE_ACCOUNTS) {
-        const hashed = await bcrypt.hash(account.password, 10);
-        await this.employeesRepository.save(this.employeesRepository.create({
-          ...account,
-          password: hashed
-        }));
+    try {
+      const adminExists = await this.employeesRepository.findOne({ where: { role: 'admin' } });
+      if (!adminExists) {
+        this.logger.log('No admin found. Seeding initial accounts...');
+        for (const account of CORE_ACCOUNTS) {
+          const hashed = await bcrypt.hash(account.password, 10);
+          await this.employeesRepository.save(this.employeesRepository.create({
+            ...account,
+            password: hashed
+          }));
+        }
+        this.logger.log('Initial accounts seeded successfully.');
+      } else {
+        this.logger.log('Admin account already exists. Skipping seed.');
       }
-      console.log('Initial accounts seeded successfully.');
+    } catch (err) {
+      this.logger.error(
+        'Could not check/seed employees on init (tables may not exist yet). Error: ' + err.message
+      );
     }
   }
 

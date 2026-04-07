@@ -41,7 +41,8 @@ import { SeedModule } from './seed/seed.module';
         database: configService.get<string>('DB_NAME', 'garment_tracking'),
         entities: [Employee, Order, OrderStage, AppSetting, StageDefinition],
         autoLoadEntities: true, // Automatically loads all entities registered in the project
-        synchronize: configService.get<string>('NODE_ENV') !== 'production', // Disable synchronize in production for data safety
+        // DB_SYNC=true: one-time flag to create tables on a fresh DB. Set to false after first run.
+        synchronize: configService.get<string>('DB_SYNC') === 'true',
 
         /**
          * Connection pooling is critical for production performance.
