@@ -11,13 +11,25 @@ async function bootstrap() {
   // Multiple origins can be separated by commas: "https://app1.com,https://app2.com"
   const frontendUrl = process.env.FRONTEND_URL;
   const allowedOrigins = frontendUrl
-    ? frontendUrl.split(',').map((url) => url.trim())
+    ? frontendUrl.split(',').map((url) => url.trim().replace(/\/$/, ''))
     : true; // Allow all origins if not specified (dev fallback)
 
+  // Ensure these are always included if they are not already
+  const defaultOrigins = [
+    'https://seniorsjacket.com',
+    'https://www.seniorsjacket.com',
+    'http://seniorsjacket.com',
+    'http://www.seniorsjacket.com',
+  ];
+
+  const finalOrigins = Array.isArray(allowedOrigins)
+    ? [...new Set([...allowedOrigins, ...defaultOrigins])]
+    : allowedOrigins;
+
   app.enableCors({
-    origin: allowedOrigins,
+    origin: finalOrigins,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
     credentials: true,
   });
 
